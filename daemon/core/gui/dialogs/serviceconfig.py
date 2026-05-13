@@ -384,13 +384,15 @@ class ServiceConfigDialog(Dialog):
             frame, state=tk.DISABLED, textvariable=self.validation_period
         )
         self.validation_period_entry.grid(row=2, column=1, sticky=tk.EW, pady=PADY)
+        tab.rowconfigure(1, weight=1)
+        tab.rowconfigure(2, weight=1)
 
         label_frame = ttk.LabelFrame(tab, text="Executables", padding=FRAME_PAD)
-        label_frame.grid(sticky=tk.NSEW, pady=PADY)
+        label_frame.grid(row=1, column=0, sticky=tk.NSEW, pady=PADY)
         label_frame.columnconfigure(0, weight=1)
         label_frame.rowconfigure(0, weight=1)
         listbox_scroll = ListboxScroll(label_frame)
-        listbox_scroll.listbox.config(height=4)
+        listbox_scroll.listbox.config(height=6)
         listbox_scroll.grid(sticky=tk.NSEW)
         self.executables_listbox = listbox_scroll.listbox
         for executable in self.executables:
@@ -403,11 +405,11 @@ class ServiceConfigDialog(Dialog):
         button.grid(row=0, column=1)
 
         label_frame = ttk.LabelFrame(tab, text="Dependencies", padding=FRAME_PAD)
-        label_frame.grid(sticky=tk.NSEW, pady=PADY)
+        label_frame.grid(row=2, column=0, sticky=tk.NSEW, pady=PADY)
         label_frame.columnconfigure(0, weight=1)
         label_frame.rowconfigure(0, weight=1)
         listbox_scroll = ListboxScroll(label_frame)
-        listbox_scroll.listbox.config(height=4)
+        listbox_scroll.listbox.config(height=6)
         listbox_scroll.grid(sticky=tk.NSEW)
         self.dependencies_listbox = listbox_scroll.listbox
         for dependency in self.dependencies:
