@@ -325,11 +325,17 @@ class DockerNode(CoreNode):
             if full_cmd:
                 cmd_str = " ".join(shlex.quote(x) for x in full_cmd)
                 logger.info("node(%s) running default command: %s", self.name, cmd_str)
-                # run in background using docker exec -d
-                # we wait a small bit to ensure network plumbing is settled
+                # run in background using a shell to ensure environment is set
+                # and redirect output to a log file for debugging
                 time.sleep(0.5)
-                result = self.host_cmd(f"{DOCKER} exec -d {self.name} {cmd_str}")
-                logger.info("node(%s) exec result: %s", self.name, result.strip())
+                # we use wait=False because we don't want to block session startup
+                # and we don't use -d in self.cmd because we want the shell to handle the backgrounding if needed
+                # but actually self.cmd with wait=False is equivalent to background
+                try:
+                    self.cmd(f"{cmd_str} > /tmp/core-startup.log 2>&1", wait=False, shell=True)
+                    logger.info("node(%s) default command launched (see /tmp/core-startup.log)", self.name)
+                except Exception as e:
+                    logger.error("node(%s) failed to launch default command: %s", self.name, e)
             else:
                 logger.warning("node(%s) image %s has no default ENTRYPOINT or CMD", self.name, image)
         except Exception as e:
