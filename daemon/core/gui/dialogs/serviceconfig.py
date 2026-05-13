@@ -388,6 +388,7 @@ class ServiceConfigDialog(Dialog):
         if self.directories_listbox is not None:
             self.directories = list(self.directories_listbox.get(0, tk.END))
             self.templates = list(self.files_listbox.get(0, tk.END))
+        self.update_template_file_data(None)
         current_listbox = self.master.current.listbox
         if not self.is_custom():
             self.node.service_configs.pop(self.service_name, None)
@@ -494,6 +495,9 @@ class ServiceConfigDialog(Dialog):
             self.files_listbox.insert(tk.END, name)
             if name not in self.temp_service_files:
                 self.temp_service_files[name] = ""
+            self.files_listbox.selection_clear(0, tk.END)
+            self.files_listbox.selection_set(tk.END)
+            self.handle_template_changed(None)
             self.template_text.text.configure(state=tk.NORMAL)
             self.rendered_text.text.configure(state=tk.NORMAL)
 
