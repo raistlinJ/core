@@ -556,26 +556,49 @@ class ServiceConfigDialog(Dialog):
         )
 
     def click_defaults(self) -> None:
-        # clear all saved state data
+        # reset data to defaults
         self.modified_files.clear()
         self.node.service_configs.pop(self.service_name, None)
         self.temp_service_files = dict(self.original_service_files)
+        self.startup_commands = self.default_startup[:]
+        self.shutdown_commands = self.default_shutdown[:]
+        self.validation_commands = self.default_validate[:]
+        self.directories = self.default_directories[:]
+        self.templates = self.default_files[:]
+
+        # update UI widgets
+        if self.startup_commands_listbox:
+            self.startup_commands_listbox.delete(0, tk.END)
+            for cmd in self.startup_commands:
+                self.startup_commands_listbox.insert(tk.END, cmd)
+        if self.shutdown_commands_listbox:
+            self.shutdown_commands_listbox.delete(0, tk.END)
+            for cmd in self.shutdown_commands:
+                self.shutdown_commands_listbox.insert(tk.END, cmd)
+        if self.validate_commands_listbox:
+            self.validate_commands_listbox.delete(0, tk.END)
+            for cmd in self.validation_commands:
+                self.validate_commands_listbox.insert(tk.END, cmd)
+        if self.directories_listbox:
+            self.directories_listbox.delete(0, tk.END)
+            for directory in self.directories:
+                self.directories_listbox.insert(tk.END, directory)
+        if self.files_listbox:
+            self.files_listbox.delete(0, tk.END)
+            for file in self.templates:
+                self.files_listbox.insert(tk.END, file)
+            if self.templates:
+                self.files_listbox.selection_set(0)
+                self.handle_template_changed(None)
+
+        if self.config_frame:
+            logger.info("resetting defaults: %s", self.default_config)
+            self.config_frame.set_values(self.default_config)
+
         # reset session definition and retrieve default rendered templates
         self.core.start_session(definition=True)
         self.rendered = self.core.get_service_rendered(self.node.id, self.service_name)
         logger.info("cleared service config: %s", self.node.service_configs)
-        # reset current selected file data and config data, if present
-        selection = self.files_listbox.curselection()
-        if selection:
-            index = selection[0]
-            template_name = self.files_listbox.get(index)
-            temp_data = self.temp_service_files.get(template_name, "")
-            self.template_text.set_text(temp_data)
-            rendered_data = self.rendered.get(template_name, "")
-            self.rendered_text.set_text(rendered_data)
-        if self.config_frame:
-            logger.info("resetting defaults: %s", self.default_config)
-            self.config_frame.set_values(self.default_config)
 
     def append_commands(
         self, commands: list[str], listbox: tk.Listbox, to_add: list[str]
