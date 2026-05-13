@@ -82,12 +82,15 @@ class ServiceConfigDialog(Dialog):
         try:
             self.core.start_session(definition=True)
             service = self.core.services[self.service_name]
+            self.description = service.description
             self.dependencies = service.dependencies[:]
             self.executables = service.executables[:]
             self.directories = service.directories[:]
             self.templates = service.files[:]
             self.default_directories = service.directories[:]
             self.default_files = service.files[:]
+            self.default_dependencies = service.dependencies[:]
+            self.default_executables = service.executables[:]
             self.startup_commands = service.startup[:]
             self.validation_commands = service.validate[:]
             self.shutdown_commands = service.shutdown[:]
@@ -132,12 +135,19 @@ class ServiceConfigDialog(Dialog):
 
     def draw(self) -> None:
         self.top.columnconfigure(0, weight=1)
-        self.top.rowconfigure(0, weight=1)
+        self.top.rowconfigure(1, weight=1)
+
+        if self.description:
+            label = ttk.Label(self.top, text=self.description, font=("TkDefaultFont", 10, "italic"))
+            label.grid(sticky=tk.W, padx=PADX, pady=PADY)
+
         # draw notebook
         self.notebook = ttk.Notebook(self.top)
         self.notebook.grid(sticky=tk.NSEW, pady=PADY)
         self.draw_tab_files()
         self.draw_tab_dirs()
+        self.draw_tab_dependencies()
+        self.draw_tab_executables()
         if self.config:
             self.draw_tab_config()
         self.draw_tab_startstop()
@@ -173,6 +183,58 @@ class ServiceConfigDialog(Dialog):
             button_frame, text="Remove", command=self.click_remove_directory
         )
         button.grid(row=0, column=2)
+
+    def draw_tab_dependencies(self) -> None:
+        tab = ttk.Frame(self.notebook, padding=FRAME_PAD)
+        tab.grid(sticky=tk.NSEW)
+        tab.columnconfigure(0, weight=1)
+        tab.rowconfigure(1, weight=1)
+        self.notebook.add(tab, text="Dependencies")
+
+        label = ttk.Label(tab, text="Other services that must start before this one.")
+        label.grid(pady=PADY)
+
+        listbox_scroll = ListboxScroll(tab)
+        listbox_scroll.listbox.config(height=10)
+        listbox_scroll.grid(sticky=tk.NSEW)
+        self.dependencies_listbox = listbox_scroll.listbox
+        for dependency in self.dependencies:
+            self.dependencies_listbox.insert(tk.END, dependency)
+
+        button_frame = ttk.Frame(tab)
+        button_frame.grid(pady=(5, 0))
+        button = ttk.Button(button_frame, text="Add", command=self.click_add_dependency)
+        button.grid(row=0, column=0, padx=PADX)
+        button = ttk.Button(
+            button_frame, text="Remove", command=self.click_remove_dependency
+        )
+        button.grid(row=0, column=1)
+
+    def draw_tab_executables(self) -> None:
+        tab = ttk.Frame(self.notebook, padding=FRAME_PAD)
+        tab.grid(sticky=tk.NSEW)
+        tab.columnconfigure(0, weight=1)
+        tab.rowconfigure(1, weight=1)
+        self.notebook.add(tab, text="Executables")
+
+        label = ttk.Label(tab, text="Binaries that must exist for this service.")
+        label.grid(pady=PADY)
+
+        listbox_scroll = ListboxScroll(tab)
+        listbox_scroll.listbox.config(height=10)
+        listbox_scroll.grid(sticky=tk.NSEW)
+        self.executables_listbox = listbox_scroll.listbox
+        for executable in self.executables:
+            self.executables_listbox.insert(tk.END, executable)
+
+        button_frame = ttk.Frame(tab)
+        button_frame.grid(pady=(5, 0))
+        button = ttk.Button(button_frame, text="Add", command=self.click_add_executable)
+        button.grid(row=0, column=0, padx=PADX)
+        button = ttk.Button(
+            button_frame, text="Remove", command=self.click_remove_executable
+        )
+        button.grid(row=0, column=1)
 
     def draw_tab_files(self) -> None:
         tab = ttk.Frame(self.notebook, padding=FRAME_PAD)
@@ -314,13 +376,29 @@ class ServiceConfigDialog(Dialog):
             button_frame.columnconfigure(0, weight=1)
             button_frame.columnconfigure(1, weight=1)
             add_button = ttk.Button(
-                button_frame, text="Add", command=lambda attr=listbox_attr: self.click_add_command(attr)
+                button_frame,
+                text="Add",
+                command=lambda attr=listbox_attr: self.click_add_command(attr),
             )
-            add_button.grid(row=0, column=0, sticky=tk.EW, padx=(0, 5))
+            add_button.grid(row=0, column=0, sticky=tk.EW, padx=PADX)
             remove_button = ttk.Button(
-                button_frame, text="Remove", command=lambda attr=listbox_attr: self.click_remove_command(attr)
+                button_frame,
+                text="Remove",
+                command=lambda attr=listbox_attr: self.click_remove_command(attr),
             )
-            remove_button.grid(row=0, column=1, sticky=tk.EW)
+            remove_button.grid(row=0, column=1, sticky=tk.EW, padx=PADX)
+            up_button = ttk.Button(
+                button_frame,
+                text="Up",
+                command=lambda attr=listbox_attr: self.click_move_command(attr, -1),
+            )
+            up_button.grid(row=0, column=2, sticky=tk.EW, padx=PADX)
+            down_button = ttk.Button(
+                button_frame,
+                text="Down",
+                command=lambda attr=listbox_attr: self.click_move_command(attr, 1),
+            )
+            down_button.grid(row=0, column=3, sticky=tk.EW)
 
     def draw_tab_validation(self) -> None:
         tab = ttk.Frame(self.notebook, padding=FRAME_PAD)
@@ -384,14 +462,36 @@ class ServiceConfigDialog(Dialog):
     def draw_buttons(self) -> None:
         frame = ttk.Frame(self.top)
         frame.grid(sticky=tk.EW)
-        for i in range(3):
+        for i in range(4):
             frame.columnconfigure(i, weight=1)
         button = ttk.Button(frame, text="Apply", command=self.click_apply)
         button.grid(row=0, column=0, sticky=tk.EW, padx=PADX)
-        button = ttk.Button(frame, text="Defaults", command=self.click_defaults)
+        button = ttk.Button(frame, text="Copy to...", command=self.click_copy_to)
         button.grid(row=0, column=1, sticky=tk.EW, padx=PADX)
+        button = ttk.Button(frame, text="Defaults", command=self.click_defaults)
+        button.grid(row=0, column=2, sticky=tk.EW, padx=PADX)
         button = ttk.Button(frame, text="Cancel", command=self.destroy)
-        button.grid(row=0, column=2, sticky=tk.EW)
+        button.grid(row=0, column=3, sticky=tk.EW)
+
+    def click_copy_to(self) -> None:
+        self.update_template_file_data(None)
+        service_config = ServiceData()
+        if self.config_frame:
+            self.config_frame.parse_config()
+            service_config.config = {x.name: x.value for x in self.config.values()}
+        for file in self.modified_files:
+            service_config.templates[file] = self.temp_service_files[file]
+        service_config.startup = list(self.startup_commands)
+        service_config.shutdown = list(self.shutdown_commands)
+        service_config.validate = list(self.validation_commands)
+        service_config.directories = list(self.directories)
+        service_config.files = list(self.templates)
+        service_config.dependencies = list(self.dependencies)
+        service_config.executables = list(self.executables)
+        service_config.description = self.description or ""
+
+        dialog = CopyToDialog(self.top, self.app, self.service_name, service_config, self.node)
+        dialog.show()
 
     def click_apply(self) -> None:
         if self.startup_commands_listbox is not None:
@@ -401,6 +501,10 @@ class ServiceConfigDialog(Dialog):
         if self.directories_listbox is not None:
             self.directories = list(self.directories_listbox.get(0, tk.END))
             self.templates = list(self.files_listbox.get(0, tk.END))
+        if self.dependencies_listbox is not None:
+            self.dependencies = list(self.dependencies_listbox.get(0, tk.END))
+        if self.executables_listbox is not None:
+            self.executables = list(self.executables_listbox.get(0, tk.END))
         self.update_template_file_data(None)
         current_listbox = self.master.current.listbox
         if not self.is_custom():
@@ -421,6 +525,9 @@ class ServiceConfigDialog(Dialog):
             service_config.validate = list(self.validation_commands)
             service_config.directories = list(self.directories)
             service_config.files = list(self.templates)
+            service_config.dependencies = list(self.dependencies)
+            service_config.executables = list(self.executables)
+            service_config.description = self.description or ""
             all_current = current_listbox.get(0, tk.END)
             current_listbox.itemconfig(all_current.index(self.service_name), bg="green")
         self.destroy()
@@ -469,6 +576,26 @@ class ServiceConfigDialog(Dialog):
         selection = listbox.curselection()
         if selection:
             listbox.delete(selection[0])
+
+    def click_move_command(self, listbox_attr: str, direction: int) -> None:
+        listbox = getattr(self, listbox_attr)
+        selection = listbox.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        new_index = index + direction
+        if 0 <= new_index < listbox.size():
+            cmd = listbox.get(index)
+            listbox.delete(index)
+            listbox.insert(new_index, cmd)
+            listbox.selection_set(new_index)
+            # sync internal list
+            if listbox_attr == "startup_commands_listbox":
+                self.startup_commands = list(listbox.get(0, tk.END))
+            elif listbox_attr == "shutdown_commands_listbox":
+                self.shutdown_commands = list(listbox.get(0, tk.END))
+            elif listbox_attr == "validate_commands_listbox":
+                self.validation_commands = list(listbox.get(0, tk.END))
 
     def handle_template_changed(self, event: tk.Event) -> None:
         selection = self.files_listbox.curselection()
@@ -525,6 +652,32 @@ class ServiceConfigDialog(Dialog):
         if selection:
             index = selection[0]
             self.directories_listbox.delete(index)
+
+    def click_add_dependency(self) -> None:
+        name = simpledialog.askstring("Add Dependency", "Service name:")
+        if name:
+            if name in self.dependencies_listbox.get(0, tk.END):
+                return
+            self.dependencies_listbox.insert(tk.END, name)
+
+    def click_remove_dependency(self) -> None:
+        selection = self.dependencies_listbox.curselection()
+        if selection:
+            index = selection[0]
+            self.dependencies_listbox.delete(index)
+
+    def click_add_executable(self) -> None:
+        name = simpledialog.askstring("Add Executable", "Executable name:")
+        if name:
+            if name in self.executables_listbox.get(0, tk.END):
+                return
+            self.executables_listbox.insert(tk.END, name)
+
+    def click_remove_executable(self) -> None:
+        selection = self.executables_listbox.curselection()
+        if selection:
+            index = selection[0]
+            self.executables_listbox.delete(index)
 
     def click_add_file(self) -> None:
         name = simpledialog.askstring("Add File", "Enter file name:")
@@ -593,12 +746,16 @@ class ServiceConfigDialog(Dialog):
         )
         has_custom_files = self.templates != self.default_files
         has_custom_directories = self.directories != self.default_directories
+        has_custom_dependencies = self.dependencies != self.default_dependencies
+        has_custom_executables = self.executables != self.default_executables
         return (
             has_custom_templates
             or has_custom_config
             or has_custom_commands
             or has_custom_files
             or has_custom_directories
+            or has_custom_dependencies
+            or has_custom_executables
         )
 
     def click_defaults(self) -> None:
@@ -611,6 +768,8 @@ class ServiceConfigDialog(Dialog):
         self.validation_commands = self.default_validate[:]
         self.directories = self.default_directories[:]
         self.templates = self.default_files[:]
+        self.dependencies = self.default_dependencies[:]
+        self.executables = self.default_executables[:]
 
         # update UI widgets
         if self.startup_commands_listbox:
@@ -636,6 +795,14 @@ class ServiceConfigDialog(Dialog):
             if self.templates:
                 self.files_listbox.selection_set(0)
                 self.handle_template_changed(None)
+        if self.dependencies_listbox:
+            self.dependencies_listbox.delete(0, tk.END)
+            for dependency in self.dependencies:
+                self.dependencies_listbox.insert(tk.END, dependency)
+        if self.executables_listbox:
+            self.executables_listbox.delete(0, tk.END)
+            for executable in self.executables:
+                self.executables_listbox.insert(tk.END, executable)
 
         if self.config_frame:
             logger.info("resetting defaults: %s", self.default_config)
@@ -652,3 +819,106 @@ class ServiceConfigDialog(Dialog):
         for cmd in to_add:
             commands.append(cmd)
             listbox.insert(tk.END, cmd)
+
+
+class CopyToDialog(Dialog):
+    def __init__(
+        self, master: tk.BaseWidget, app: "Application", service_name: str, service_config: ServiceData, source_node: Node
+    ) -> None:
+        self.service_name = service_name
+        self.service_config = service_config
+        self.source_node = source_node
+        self.nodes_listbox = None
+        super().__init__(app, f"Copy {service_name} to...", master=master)
+
+    def draw(self) -> None:
+        self.top.columnconfigure(0, weight=1)
+        self.top.rowconfigure(1, weight=1)
+
+        label = ttk.Label(self.top, text=f"Select nodes to copy '{self.service_name}' configuration to:")
+        label.grid(sticky=tk.W, padx=PADX, pady=PADY)
+
+        listbox_scroll = ListboxScroll(self.top)
+        listbox_scroll.grid(sticky=tk.NSEW, pady=PADY)
+        self.nodes_listbox = listbox_scroll.listbox
+        self.nodes_listbox.config(selectmode=tk.MULTIPLE)
+
+        # populate nodes
+        session = self.app.core.get_session(self.app.core.session_id)
+        for node_id in sorted(session.nodes):
+            node = session.nodes[node_id]
+            if node.id == self.source_node.id:
+                continue
+            # only show nodes that have this service enabled?
+            # actually, 8.2.0 allowed copying to any node, but maybe filter by type?
+            self.nodes_listbox.insert(tk.END, f"{node.id}: {node.name} ({node.type.name})")
+
+        button_frame = ttk.Frame(self.top)
+        button_frame.grid(sticky=tk.EW, pady=PADY)
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
+        button_frame.columnconfigure(2, weight=1)
+
+        button = ttk.Button(button_frame, text="All", command=self.click_all)
+        button.grid(row=0, column=0, padx=PADX)
+        button = ttk.Button(button_frame, text="Same Type", command=self.click_same_type)
+        button.grid(row=0, column=1, padx=PADX)
+        button = ttk.Button(button_frame, text="None", command=self.click_none)
+        button.grid(row=0, column=2)
+
+        draw_buttons_frame = ttk.Frame(self.top)
+        draw_buttons_frame.grid(sticky=tk.EW)
+        draw_buttons_frame.columnconfigure(0, weight=1)
+        draw_buttons_frame.columnconfigure(1, weight=1)
+
+        button = ttk.Button(draw_buttons_frame, text="Copy", command=self.click_copy)
+        button.grid(row=0, column=0, padx=PADX, sticky=tk.EW)
+        button = ttk.Button(draw_buttons_frame, text="Cancel", command=self.destroy)
+        button.grid(row=0, column=1, sticky=tk.EW)
+
+    def click_all(self) -> None:
+        self.nodes_listbox.selection_set(0, tk.END)
+
+    def click_same_type(self) -> None:
+        self.click_none()
+        session = self.app.core.get_session(self.app.core.session_id)
+        for i, node_id in enumerate(sorted(session.nodes)):
+            node = session.nodes[node_id]
+            if node.id == self.source_node.id:
+                continue
+            if node.type == self.source_node.type:
+                # adjust for the fact that we skipped source_node in the insert?
+                # actually, we should find the correct index in the listbox
+                # let's rebuild the index mapping
+                pass
+        
+        # easier way: iterate listbox items
+        for i in range(self.nodes_listbox.size()):
+            item = self.nodes_listbox.get(i)
+            node_id = int(item.split(":")[0])
+            node = session.nodes[node_id]
+            if node.type == self.source_node.type:
+                self.nodes_listbox.selection_set(i)
+
+    def click_none(self) -> None:
+        self.nodes_listbox.selection_clear(0, tk.END)
+
+    def click_copy(self) -> None:
+        selection = self.nodes_listbox.curselection()
+        if not selection:
+            self.app.show_error("Copy Error", "No nodes selected.")
+            return
+
+        session = self.app.core.get_session(self.app.core.session_id)
+        for index in selection:
+            item = self.nodes_listbox.get(index)
+            node_id = int(item.split(":")[0])
+            node = session.nodes[node_id]
+            # apply configuration
+            node.service_configs[self.service_name] = self.service_config
+            # ensure service is enabled on target node?
+            if self.service_name not in node.services:
+                node.services.append(self.service_name)
+        
+        self.app.show_info("Copy Success", f"Configuration copied to {len(selection)} nodes.")
+        self.destroy()

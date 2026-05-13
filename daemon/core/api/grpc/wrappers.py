@@ -127,6 +127,7 @@ class Service:
             validation_mode=ServiceValidationMode(proto.validation_mode),
             validation_timer=proto.validation_timer,
             validation_period=proto.validation_period,
+            description=proto.description,
         )
 
     def to_proto(self) -> services_pb2.Service:
@@ -143,6 +144,7 @@ class Service:
             validation_mode=self.validation_mode.value,
             validation_timer=self.validation_timer,
             validation_period=self.validation_period,
+            description=self.description or "",
         )
 
 
@@ -155,6 +157,9 @@ class ServiceData:
     validate: list[str] = field(default_factory=list)
     directories: list[str] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
+    executables: list[str] = field(default_factory=list)
+    description: str = ""
 
 
 @dataclass
@@ -645,6 +650,9 @@ class Node:
                 validate=list(service_config.validate),
                 directories=list(service_config.directories),
                 files=list(service_config.files),
+                dependencies=list(service_config.dependencies),
+                executables=list(service_config.executables),
+                description=service_config.description,
             )
         return Node(
             id=proto.id,
@@ -691,6 +699,9 @@ class Node:
                 validate=service_config.validate,
                 directories=service_config.directories,
                 files=service_config.files,
+                dependencies=service_config.dependencies,
+                executables=service_config.executables,
+                description=service_config.description,
             )
         return core_pb2.Node(
             id=self.id,

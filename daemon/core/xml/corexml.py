@@ -397,6 +397,18 @@ class CoreXmlWriter:
                         etree.SubElement(
                             files_element, "file"
                         ).text = file
+                if service.dependencies:
+                    dependencies_element = etree.SubElement(service_element, "dependencies")
+                    for dependency in service.dependencies:
+                        etree.SubElement(
+                            dependencies_element, "dependency"
+                        ).text = dependency
+                if service.executables:
+                    executables_element = etree.SubElement(service_element, "executables")
+                    for executable in service.executables:
+                        etree.SubElement(
+                            executables_element, "executable"
+                        ).text = executable
                 if (
                     service.custom_config
                     or service.custom_templates
@@ -405,6 +417,8 @@ class CoreXmlWriter:
                     or service.validate
                     or service.directories
                     or service.files
+                    or service.dependencies
+                    or service.executables
                 ):
                     service_configurations.append(service_element)
         if service_configurations.getchildren():
@@ -845,6 +859,20 @@ class CoreXmlReader:
                 for file_element in files_element.iterchildren():
                     if file_element.text:
                         service.files.append(file_element.text)
+            # Read dependencies
+            dependencies_element = service_element.find("dependencies")
+            if dependencies_element is not None:
+                service.dependencies = []
+                for dep_element in dependencies_element.iterchildren():
+                    if dep_element.text:
+                        service.dependencies.append(dep_element.text)
+            # Read executables
+            executables_element = service_element.find("executables")
+            if executables_element is not None:
+                service.executables = []
+                for exe_element in executables_element.iterchildren():
+                    if exe_element.text:
+                        service.executables.append(exe_element.text)
 
     def read_links(self) -> None:
         link_elements = self.scenario.find("links")

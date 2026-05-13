@@ -37,6 +37,9 @@ message ServiceConfig {
     repeated string validate = 5;
     repeated string directories = 6;
     repeated string files = 7;
+    repeated string dependencies = 8;
+    repeated string executables = 9;
+    string description = 10;
 }
 
 message ServiceValidationMode {
@@ -60,6 +63,7 @@ message Service {
     ServiceValidationMode.Enum validation_mode = 10;
     int32 validation_timer = 11;
     float validation_period = 12;
+    string description = 13;
 }
 
 message ConfigMode {

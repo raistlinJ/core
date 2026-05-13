@@ -11,6 +11,7 @@ GROUP_NAME = "Utility"
 class DefaultRouteService(CoreService):
     name: str = "DefaultRoute"
     group: str = GROUP_NAME
+    description: str = "Adds a default route to the routing node."
     files: list[str] = ["defaultroute.sh"]
     executables: list[str] = ["ip"]
     startup: list[str] = ["bash defaultroute.sh"]
@@ -66,6 +67,7 @@ class StaticRouteService(CoreService):
 class IpForwardService(CoreService):
     name: str = "IPForward"
     group: str = GROUP_NAME
+    description: str = "Enables IP forwarding on the node."
     files: list[str] = ["ipforward.sh"]
     executables: list[str] = ["sysctl"]
     startup: list[str] = ["bash ipforward.sh"]
@@ -81,6 +83,7 @@ class IpForwardService(CoreService):
 class SshService(CoreService):
     name: str = "SSH"
     group: str = GROUP_NAME
+    description: str = "Starts an SSH daemon on the node."
     directories: list[str] = ["/etc/ssh", "/var/run/sshd"]
     files: list[str] = ["startsshd.sh", "/etc/ssh/sshd_config"]
     executables: list[str] = ["sshd"]
