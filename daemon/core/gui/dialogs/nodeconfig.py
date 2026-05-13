@@ -193,6 +193,9 @@ class NodeConfigDialog(Dialog):
             value=self.node.image_compatibility
         )
         self.docker_command: tk.StringVar = tk.StringVar(value=self.node.docker_command)
+        self.run_image_default: tk.BooleanVar = tk.BooleanVar(
+            value=self.node.run_image_default
+        )
         self.compose_file: tk.StringVar = tk.StringVar(value=self.node.compose)
         self.compose_name: tk.StringVar = tk.StringVar(value=self.node.compose_name)
         server = DEFAULT_SERVER
@@ -284,6 +287,12 @@ class NodeConfigDialog(Dialog):
             # image compatibility
             checkbutton = ttk.Checkbutton(
                 overview_frame, text="Image Compatibility", variable=self.image_compatibility, state=state
+            )
+            checkbutton.grid(row=overview_row, column=1, sticky=tk.W)
+            overview_row += 1
+            # run image default
+            checkbutton = ttk.Checkbutton(
+                overview_frame, text="Run Image Default", variable=self.run_image_default, state=state
             )
             checkbutton.grid(row=overview_row, column=1, sticky=tk.W)
             overview_row += 1
@@ -473,6 +482,7 @@ class NodeConfigDialog(Dialog):
             self.node.image = self.container_image.get() or None
             self.node.image_compatibility = self.image_compatibility.get()
             self.node.docker_command = self.docker_command.get() or None
+            self.node.run_image_default = self.run_image_default.get()
             self.node.compose = self.compose_file.get() or None
             self.node.compose_name = self.compose_name.get() or None
             if self.node.compose and not self.node.compose_name:

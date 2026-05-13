@@ -47,6 +47,7 @@ class DockerOptions(CoreNodeOptions):
     """
     image_compatibility: bool = False
     docker_command: str = "tail -f /dev/null"
+    run_image_default: bool = False
 
 
 @dataclass
@@ -93,6 +94,7 @@ class DockerNode(CoreNode):
         self.compose_name: str | None = options.compose_name
         self.image_compatibility: bool = options.image_compatibility
         self.docker_command: str = options.docker_command
+        self.run_image_default: bool = options.run_image_default
         self.binds: list[tuple[str, str]] = options.binds
         self.volumes: dict[str, DockerVolume] = {}
         self.env: dict[str, str] = {}
@@ -279,6 +281,31 @@ class DockerNode(CoreNode):
             self.up = True
             if self.image_compatibility:
                 self.check_image_compatibility()
+            if self.run_image_default:
+                self.run_default_command()
+
+    def run_default_command(self) -> None:
+        """
+        Inspects the image and runs its default ENTRYPOINT/CMD.
+        """
+        logger.info("node(%s) attempting to run image default command", self.name)
+        try:
+            # get image config
+            data = self.host_cmd(f"{DOCKER} inspect -f '{{{{json .Config}}}}' {self.image}")
+            config = json.loads(data)
+            entrypoint = config.get("Entrypoint") or []
+            cmd = config.get("Cmd") or []
+            
+            full_cmd = entrypoint + cmd
+            if full_cmd:
+                cmd_str = " ".join(shlex.quote(x) for x in full_cmd)
+                logger.info("node(%s) running default command: %s", self.name, cmd_str)
+                # run in background using docker exec -d
+                self.host_cmd(f"{DOCKER} exec -d {self.name} {cmd_str}")
+            else:
+                logger.warning("node(%s) image %s has no default ENTRYPOINT or CMD", self.name, self.image)
+        except Exception as e:
+            logger.error("node(%s) failed to run default command: %s", self.name, e)
 
     def check_image_compatibility(self) -> None:
         """

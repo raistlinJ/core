@@ -181,6 +181,7 @@ class DeviceElement(NodeElement):
         if isinstance(self.node, (DockerNode, PodmanNode)):
             add_attribute(self.element, "image_compatibility", self.node.image_compatibility)
             add_attribute(self.element, "docker_command", self.node.docker_command)
+            add_attribute(self.element, "run_image_default", self.node.run_image_default)
 
     def add_services(self) -> None:
         service_elements = etree.Element("services")
@@ -729,6 +730,7 @@ class CoreXmlReader:
         compose_name = device_element.get("compose_name")
         image_compatibility = get_bool(device_element, "image_compatibility")
         docker_command = device_element.get("docker_command")
+        run_image_default = get_bool(device_element, "run_image_default")
         server = device_element.get("server")
         canvas = get_int(device_element, "canvas")
         node_type = NodeTypes.DEFAULT
@@ -755,6 +757,7 @@ class CoreXmlReader:
             options.compose = compose
             options.compose_name = compose_name
             options.image_compatibility = image_compatibility
+            options.run_image_default = run_image_default
             if docker_command:
                 options.docker_command = docker_command
         # get position information
