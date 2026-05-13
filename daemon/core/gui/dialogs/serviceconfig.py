@@ -226,8 +226,8 @@ class ServiceConfigDialog(Dialog):
             template_name = self.templates[0]
             temp_data = self.temp_service_files.get(template_name, "")
             self.template_text.set_text(temp_data)
-            rendered_data = self.rendered.get(template_name, "")
-            self.rendered_text.set_text(rendered_data)
+            self.template_text.text.configure(state=tk.DISABLED)
+            self.rendered_text.set_text(temp_data)
         else:
             self.template_text.text.configure(state=tk.DISABLED)
             self.rendered_text.text.configure(state=tk.DISABLED)
@@ -461,9 +461,14 @@ class ServiceConfigDialog(Dialog):
         index = selection[0]
         template_name = self.files_listbox.get(index)
         temp_data = self.temp_service_files.get(template_name, "")
-        self.template_text.set_text(temp_data)
-        rendered_data = self.rendered.get(template_name, "")
-        self.rendered_text.set_text(rendered_data)
+        original_data = self.original_service_files.get(template_name)
+        self.template_text.text.configure(state=tk.NORMAL)
+        if temp_data == original_data:
+            self.template_text.set_text(temp_data)
+        else:
+            self.template_text.set_text("Rendered Modified")
+        self.template_text.text.configure(state=tk.DISABLED)
+        self.rendered_text.set_text(temp_data)
 
     def update_template_file_data(self, _event: tk.Event) -> None:
         selection = self.files_listbox.curselection()
@@ -471,12 +476,19 @@ class ServiceConfigDialog(Dialog):
             return
         index = selection[0]
         template_name = self.files_listbox.get(index)
-        template_data = self.template_text.get_text()
+        template_data = self.rendered_text.get_text().strip()
         self.temp_service_files[template_name] = template_data
-        if template_data != self.original_service_files.get(template_name):
+        original_data = self.original_service_files.get(template_name)
+        if template_data != original_data:
             self.modified_files.add(template_name)
+            self.template_text.text.configure(state=tk.NORMAL)
+            self.template_text.set_text("Rendered Modified")
+            self.template_text.text.configure(state=tk.DISABLED)
         else:
             self.modified_files.discard(template_name)
+            self.template_text.text.configure(state=tk.NORMAL)
+            self.template_text.set_text(template_data)
+            self.template_text.text.configure(state=tk.DISABLED)
 
     def click_add_directory(self) -> None:
         name = simpledialog.askstring("Add Directory", "Directory name:")
