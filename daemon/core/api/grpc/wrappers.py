@@ -619,6 +619,7 @@ class Node:
     compose: str = None
     compose_name: str = None
     image_compatibility: bool = False
+    docker_command: str = None
     server: str = None
     geo: Geo = None
     dir: str = None
@@ -669,6 +670,7 @@ class Node:
             compose=proto.compose,
             compose_name=proto.compose_name,
             image_compatibility=proto.image_compatibility,
+            docker_command=proto.docker_command,
             server=proto.server,
             geo=Geo.from_proto(proto.geo),
             dir=proto.dir,
@@ -719,6 +721,7 @@ class Node:
             compose=self.compose,
             compose_name=self.compose_name,
             image_compatibility=self.image_compatibility,
+            docker_command=self.docker_command,
             server=self.server,
             dir=self.dir,
             channel=self.channel,

@@ -46,6 +46,7 @@ class DockerOptions(CoreNodeOptions):
     Service name to start, within the provided compose file.
     """
     image_compatibility: bool = False
+    docker_command: str = "tail -f /dev/null"
 
 
 @dataclass
@@ -91,6 +92,7 @@ class DockerNode(CoreNode):
         self.compose: str | None = options.compose
         self.compose_name: str | None = options.compose_name
         self.image_compatibility: bool = options.image_compatibility
+        self.docker_command: str = options.docker_command
         self.binds: list[tuple[str, str]] = options.binds
         self.volumes: dict[str, DockerVolume] = {}
         self.env: dict[str, str] = {}
@@ -246,11 +248,12 @@ class DockerNode(CoreNode):
                         f"source={volume.src},target={volume.dst} "
                     )
                 # create container and retrieve the created containers PID
+                cmd = self.docker_command or ""
                 self.host_cmd(
                     f"{DOCKER} run -td --init --net=none --hostname {hostname} "
                     f"--name {self.name} --sysctl net.ipv6.conf.all.disable_ipv6=0 "
                     f"{binds} {volumes} "
-                    f"--privileged {self.image} tail -f /dev/null"
+                    f"--privileged {self.image} {cmd}"
                 )
                 # setup symlinks for bind and volume mounts within
                 for src, dst in self.binds:

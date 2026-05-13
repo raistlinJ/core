@@ -587,6 +587,7 @@ message Node {
     string compose = 20;
     string compose_name = 21;
     bool image_compatibility = 22;
+    string docker_command = 23;
 }
 
 message Link {

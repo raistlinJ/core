@@ -192,6 +192,7 @@ class NodeConfigDialog(Dialog):
         self.image_compatibility: tk.BooleanVar = tk.BooleanVar(
             value=self.node.image_compatibility
         )
+        self.docker_command: tk.StringVar = tk.StringVar(value=self.node.docker_command)
         self.compose_file: tk.StringVar = tk.StringVar(value=self.node.compose)
         self.compose_name: tk.StringVar = tk.StringVar(value=self.node.compose_name)
         server = DEFAULT_SERVER
@@ -285,6 +286,12 @@ class NodeConfigDialog(Dialog):
                 overview_frame, text="Image Compatibility", variable=self.image_compatibility, state=state
             )
             checkbutton.grid(row=overview_row, column=1, sticky=tk.W)
+            overview_row += 1
+            # docker command
+            label = ttk.Label(overview_frame, text="Command")
+            label.grid(row=overview_row, column=0, sticky=tk.EW, padx=PADX, pady=PADY)
+            entry = ttk.Entry(overview_frame, textvariable=self.docker_command, state=state)
+            entry.grid(row=overview_row, column=1, sticky=tk.EW)
             overview_row += 1
             # compose file
             compose_frame = ttk.Frame(overview_frame)
@@ -465,6 +472,7 @@ class NodeConfigDialog(Dialog):
         if nutils.has_image(self.node.type):
             self.node.image = self.container_image.get() or None
             self.node.image_compatibility = self.image_compatibility.get()
+            self.node.docker_command = self.docker_command.get() or None
             self.node.compose = self.compose_file.get() or None
             self.node.compose_name = self.compose_name.get() or None
             if self.node.compose and not self.node.compose_name:
