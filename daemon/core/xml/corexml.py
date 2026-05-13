@@ -366,27 +366,25 @@ class CoreXmlWriter:
                             templates_element, "template", name=template_name
                         )
                         template_element.text = etree.CDATA(template)
-                # Save startup, shutdown, and validate commands from service_configs
-                service_config = node.service_configs.get(name)
-                if service_config:
-                    if service_config.startup:
-                        startup_element = etree.SubElement(service_element, "startup")
-                        for cmd in service_config.startup:
-                            etree.SubElement(
-                                startup_element, "command"
-                            ).text = cmd
-                    if service_config.shutdown:
-                        shutdown_element = etree.SubElement(service_element, "shutdown")
-                        for cmd in service_config.shutdown:
-                            etree.SubElement(
-                                shutdown_element, "command"
-                            ).text = cmd
-                    if service_config.validate:
-                        validate_element = etree.SubElement(service_element, "validate")
-                        for cmd in service_config.validate:
-                            etree.SubElement(
-                                validate_element, "command"
-                            ).text = cmd
+                # Save startup, shutdown, and validate commands from service
+                if service.startup:
+                    startup_element = etree.SubElement(service_element, "startup")
+                    for cmd in service.startup:
+                        etree.SubElement(
+                            startup_element, "command"
+                        ).text = cmd
+                if service.shutdown:
+                    shutdown_element = etree.SubElement(service_element, "shutdown")
+                    for cmd in service.shutdown:
+                        etree.SubElement(
+                            shutdown_element, "command"
+                        ).text = cmd
+                if service.validate:
+                    validate_element = etree.SubElement(service_element, "validate")
+                    for cmd in service.validate:
+                        etree.SubElement(
+                            validate_element, "command"
+                        ).text = cmd
                 if service.custom_config or service.custom_templates:
                     service_configurations.append(service_element)
         if service_configurations.getchildren():
@@ -800,25 +798,19 @@ class CoreXmlReader:
             if startup_element is not None:
                 for cmd_element in startup_element.iterchildren():
                     if cmd_element.text:
-                        node.service_configs.setdefault(name, ServiceData()).startup.append(
-                            cmd_element.text
-                        )
+                        service.startup.append(cmd_element.text)
             # Read shutdown commands
             shutdown_element = service_element.find("shutdown")
             if shutdown_element is not None:
                 for cmd_element in shutdown_element.iterchildren():
                     if cmd_element.text:
-                        node.service_configs.setdefault(name, ServiceData()).shutdown.append(
-                            cmd_element.text
-                        )
+                        service.shutdown.append(cmd_element.text)
             # Read validate commands
             validate_element = service_element.find("validate")
             if validate_element is not None:
                 for cmd_element in validate_element.iterchildren():
                     if cmd_element.text:
-                        node.service_configs.setdefault(name, ServiceData()).validate.append(
-                            cmd_element.text
-                        )
+                        service.validate.append(cmd_element.text)
 
     def read_links(self) -> None:
         link_elements = self.scenario.find("links")
