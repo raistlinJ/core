@@ -111,6 +111,7 @@ class Service:
     validation_mode: ServiceValidationMode = ServiceValidationMode.NON_BLOCKING
     validation_timer: int = 0
     validation_period: float = 0.0
+    description: str = ""
 
     @classmethod
     def from_proto(cls, proto: services_pb2.Service) -> "Service":
