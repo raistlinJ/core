@@ -345,10 +345,23 @@ def get_node_proto(
     service_configs = {}
     if isinstance(node, CoreNode):
         for service in node.services.values():
-            if not service.custom_templates and not service.custom_config:
+            is_custom_startup = service.startup != service.__class__.startup
+            is_custom_shutdown = service.shutdown != service.__class__.shutdown
+            is_custom_validate = service.validate != service.__class__.validate
+            if not (
+                service.custom_templates
+                or service.custom_config
+                or is_custom_startup
+                or is_custom_shutdown
+                or is_custom_validate
+            ):
                 continue
             service_configs[service.name] = services_pb2.ServiceConfig(
-                templates=service.custom_templates, config=service.custom_config
+                templates=service.custom_templates,
+                config=service.custom_config,
+                startup=service.startup,
+                shutdown=service.shutdown,
+                validate=service.validate,
             )
     return core_pb2.Node(
         id=node.id,
