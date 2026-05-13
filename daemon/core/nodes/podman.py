@@ -204,6 +204,10 @@ class PodmanNode(CoreNode):
                 hostname = self.name.replace("_", "-")
                 # create container and retrieve the created containers PID
                 cmd = self.docker_command or ""
+                if self.run_image_default:
+                    logger.info("node(%s) run_image_default enabled, forcing anchor command", self.name)
+                    cmd = "tail -f /dev/null"
+
                 self.host_cmd(
                     f"{PODMAN} run -td --init --net=none --hostname {hostname} "
                     f"--name {self.name} --sysctl net.ipv6.conf.all.disable_ipv6=0 "
@@ -263,6 +267,8 @@ class PodmanNode(CoreNode):
                 cmd_str = " ".join(shlex.quote(x) for x in full_cmd)
                 logger.info("node(%s) running default command: %s", self.name, cmd_str)
                 # run in background using podman exec -d
+                # we wait a small bit to ensure network plumbing is settled
+                time.sleep(0.5)
                 result = self.host_cmd(f"{PODMAN} exec -d {self.name} {cmd_str}")
                 logger.info("node(%s) exec result: %s", self.name, result.strip())
             else:
