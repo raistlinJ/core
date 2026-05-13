@@ -638,6 +638,9 @@ class Node:
             service_configs[service] = ServiceData(
                 templates=dict(service_config.templates),
                 config=dict(service_config.config),
+                startup=list(service_config.startup),
+                shutdown=list(service_config.shutdown),
+                validate=list(service_config.validate),
             )
         return Node(
             id=proto.id,
