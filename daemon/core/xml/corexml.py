@@ -846,18 +846,21 @@ class CoreXmlReader:
             # Read startup commands
             startup_element = service_element.find("startup")
             if startup_element is not None:
+                service.startup = []
                 for cmd_element in startup_element.iterchildren():
                     if cmd_element.text:
                         service.startup.append(cmd_element.text)
             # Read shutdown commands
             shutdown_element = service_element.find("shutdown")
             if shutdown_element is not None:
+                service.shutdown = []
                 for cmd_element in shutdown_element.iterchildren():
                     if cmd_element.text:
                         service.shutdown.append(cmd_element.text)
             # Read validate commands
             validate_element = service_element.find("validate")
             if validate_element is not None:
+                service.validate = []
                 for cmd_element in validate_element.iterchildren():
                     if cmd_element.text:
                         service.validate.append(cmd_element.text)
