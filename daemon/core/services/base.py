@@ -64,6 +64,8 @@ class CoreService(abc.ABC):
     name: str | None = None
     # group to categorize service within
     group: str | None = None
+    # description of service
+    description: str | None = None
     # directories to create unique mount points for
     directories: list[str] = []
     # files to create for service
