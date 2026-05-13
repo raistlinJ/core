@@ -367,19 +367,11 @@ class NodeConfigDialog(Dialog):
             def update_states(*args):
                 mode = self.container_mode.get()
                 if mode == "docker":
-                    for child in docker_frame.winfo_children():
-                        if isinstance(child, (ttk.Entry, ttk.Checkbutton)):
-                            child.configure(state=state)
-                    for child in compose_section_frame.winfo_children():
-                        if isinstance(child, (ttk.Entry, ttk.Button, ttk.Combobox)):
-                            child.configure(state=tk.DISABLED)
+                    docker_frame.grid()
+                    compose_section_frame.grid_remove()
                 else:
-                    for child in docker_frame.winfo_children():
-                        if isinstance(child, (ttk.Entry, ttk.Checkbutton)):
-                            child.configure(state=tk.DISABLED)
-                    for child in compose_section_frame.winfo_children():
-                        if isinstance(child, (ttk.Entry, ttk.Button, ttk.Combobox)):
-                            child.configure(state=state)
+                    docker_frame.grid_remove()
+                    compose_section_frame.grid()
             
             self.container_mode.trace_add("write", update_states)
             update_states()
