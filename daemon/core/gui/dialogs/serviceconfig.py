@@ -481,10 +481,8 @@ class ServiceConfigDialog(Dialog):
         self.template_text.text.configure(state=tk.NORMAL)
         if temp_data == original_data:
             self.template_text.set_text(temp_data)
-            self.template_text.text.configure(bg="white")
         else:
             self.template_text.set_text("Rendered Modified")
-            self.template_text.text.configure(bg="#f0f0f0")
         self.template_text.text.configure(state=tk.DISABLED)
         self.rendered_text.set_text(temp_data)
 
