@@ -3,7 +3,7 @@ Service configuration dialog
 """
 import logging
 import tkinter as tk
-from tkinter import simpledialog, ttk
+from tkinter import filedialog, simpledialog, ttk
 from typing import TYPE_CHECKING
 
 import grpc
@@ -465,8 +465,10 @@ class ServiceConfigDialog(Dialog):
         self.template_text.text.configure(state=tk.NORMAL)
         if temp_data == original_data:
             self.template_text.set_text(temp_data)
+            self.template_text.text.configure(bg="white")
         else:
             self.template_text.set_text("Rendered Modified")
+            self.template_text.text.configure(bg="#f0f0f0")
         self.template_text.text.configure(state=tk.DISABLED)
         self.rendered_text.set_text(temp_data)
 
@@ -491,9 +493,13 @@ class ServiceConfigDialog(Dialog):
             self.template_text.text.configure(state=tk.DISABLED)
 
     def click_add_directory(self) -> None:
-        name = simpledialog.askstring("Add Directory", "Directory name:")
+        name = simpledialog.askstring("Add Directory", "Enter directory path (or leave empty to browse):")
         if name:
             self.directories_listbox.insert(tk.END, name)
+        elif name == "":
+            path = filedialog.askdirectory(title="Select Private Directory")
+            if path:
+                self.directories_listbox.insert(tk.END, path)
 
     def click_remove_directory(self) -> None:
         selection = self.directories_listbox.curselection()
@@ -502,11 +508,18 @@ class ServiceConfigDialog(Dialog):
             self.directories_listbox.delete(index)
 
     def click_add_file(self) -> None:
-        name = simpledialog.askstring("Add File", "File name:")
+        name = simpledialog.askstring("Add File", "Enter file name (or leave empty to open existing):")
+        data = ""
+        if name == "":
+            path = filedialog.askopenfilename(title="Open File")
+            if path:
+                path = Path(path)
+                name = path.name
+                data = path.read_text()
+        
         if name:
             self.files_listbox.insert(tk.END, name)
-            if name not in self.temp_service_files:
-                self.temp_service_files[name] = ""
+            self.temp_service_files[name] = data
             self.files_listbox.selection_clear(0, tk.END)
             self.files_listbox.selection_set(tk.END)
             self.handle_template_changed(None)
