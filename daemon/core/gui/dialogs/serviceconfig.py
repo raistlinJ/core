@@ -3,6 +3,7 @@ Service configuration dialog
 """
 import logging
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, simpledialog, ttk
 from typing import TYPE_CHECKING
 
@@ -176,9 +177,13 @@ class ServiceConfigDialog(Dialog):
         button = ttk.Button(button_frame, text="Add", command=self.click_add_directory)
         button.grid(row=0, column=0, padx=PADX)
         button = ttk.Button(
+            button_frame, text="Browse", command=self.click_browse_directory
+        )
+        button.grid(row=0, column=1, padx=PADX)
+        button = ttk.Button(
             button_frame, text="Remove", command=self.click_remove_directory
         )
-        button.grid(row=0, column=1)
+        button.grid(row=0, column=2)
 
         # files
         label_frame = ttk.LabelFrame(frame, text="Files", padding=FRAME_PAD)
@@ -196,8 +201,10 @@ class ServiceConfigDialog(Dialog):
         button_frame.grid(row=1, column=0, pady=(5, 0))
         button = ttk.Button(button_frame, text="Add", command=self.click_add_file)
         button.grid(row=0, column=0, padx=PADX)
+        button = ttk.Button(button_frame, text="Import", command=self.click_import_file)
+        button.grid(row=0, column=1, padx=PADX)
         button = ttk.Button(button_frame, text="Remove", command=self.click_remove_file)
-        button.grid(row=0, column=1)
+        button.grid(row=0, column=2)
         # draw file template tab
         notebook = ttk.Notebook(tab)
         notebook.rowconfigure(0, weight=1)
@@ -493,13 +500,14 @@ class ServiceConfigDialog(Dialog):
             self.template_text.text.configure(state=tk.DISABLED)
 
     def click_add_directory(self) -> None:
-        name = simpledialog.askstring("Add Directory", "Enter directory path (or leave empty to browse):")
+        name = simpledialog.askstring("Add Directory", "Enter directory path:")
         if name:
             self.directories_listbox.insert(tk.END, name)
-        elif name == "":
-            path = filedialog.askdirectory(title="Select Private Directory")
-            if path:
-                self.directories_listbox.insert(tk.END, path)
+
+    def click_browse_directory(self) -> None:
+        path = filedialog.askdirectory(title="Select Private Directory")
+        if path:
+            self.directories_listbox.insert(tk.END, path)
 
     def click_remove_directory(self) -> None:
         selection = self.directories_listbox.curselection()
@@ -508,23 +516,33 @@ class ServiceConfigDialog(Dialog):
             self.directories_listbox.delete(index)
 
     def click_add_file(self) -> None:
-        name = simpledialog.askstring("Add File", "Enter file name (or leave empty to open existing):")
-        data = ""
-        if name == "":
-            path = filedialog.askopenfilename(title="Open File")
-            if path:
-                path = Path(path)
-                name = path.name
-                data = path.read_text()
-        
+        name = simpledialog.askstring("Add File", "Enter file name:")
         if name:
             self.files_listbox.insert(tk.END, name)
-            self.temp_service_files[name] = data
+            self.temp_service_files[name] = ""
             self.files_listbox.selection_clear(0, tk.END)
             self.files_listbox.selection_set(tk.END)
             self.handle_template_changed(None)
             self.template_text.text.configure(state=tk.NORMAL)
             self.rendered_text.text.configure(state=tk.NORMAL)
+
+    def click_import_file(self) -> None:
+        path = filedialog.askopenfilename(title="Open File")
+        if path:
+            path = Path(path)
+            name = path.name
+            try:
+                data = path.read_text()
+                self.files_listbox.insert(tk.END, name)
+                self.temp_service_files[name] = data
+                self.files_listbox.selection_clear(0, tk.END)
+                self.files_listbox.selection_set(tk.END)
+                self.handle_template_changed(None)
+                self.template_text.text.configure(state=tk.NORMAL)
+                self.rendered_text.text.configure(state=tk.NORMAL)
+            except Exception as e:
+                logger.error("error reading file: %s", e)
+                self.app.show_error("Import Error", f"Error reading file: {e}")
 
     def click_remove_file(self) -> None:
         selection = self.files_listbox.curselection()
