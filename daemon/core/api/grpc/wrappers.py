@@ -153,6 +153,8 @@ class ServiceData:
     startup: list[str] = field(default_factory=list)
     shutdown: list[str] = field(default_factory=list)
     validate: list[str] = field(default_factory=list)
+    directories: list[str] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -641,6 +643,8 @@ class Node:
                 startup=list(service_config.startup),
                 shutdown=list(service_config.shutdown),
                 validate=list(service_config.validate),
+                directories=list(service_config.directories),
+                files=list(service_config.files),
             )
         return Node(
             id=proto.id,
@@ -685,6 +689,8 @@ class Node:
                 startup=service_config.startup,
                 shutdown=service_config.shutdown,
                 validate=service_config.validate,
+                directories=service_config.directories,
+                files=service_config.files,
             )
         return core_pb2.Node(
             id=self.id,

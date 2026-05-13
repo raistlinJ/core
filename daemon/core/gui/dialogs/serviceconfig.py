@@ -3,7 +3,7 @@ Service configuration dialog
 """
 import logging
 import tkinter as tk
-from tkinter import ttk
+from tkinter import simpledialog, ttk
 from typing import TYPE_CHECKING
 
 import grpc
@@ -59,6 +59,10 @@ class ServiceConfigDialog(Dialog):
         self.validate_commands_listbox: tk.Listbox | None = None
         self.validation_time_entry: ttk.Entry | None = None
         self.validation_mode_entry: ttk.Entry | None = None
+        self.directories_listbox: tk.Listbox | None = None
+        self.files_listbox: tk.Listbox | None = None
+        self.default_directories: list[str] = []
+        self.default_files: list[str] = []
         self.template_text: CodeText | None = None
         self.rendered_text: CodeText | None = None
         self.validation_period_entry: ttk.Entry | None = None
@@ -81,6 +85,8 @@ class ServiceConfigDialog(Dialog):
             self.executables = service.executables[:]
             self.directories = service.directories[:]
             self.templates = service.files[:]
+            self.default_directories = service.directories[:]
+            self.default_files = service.files[:]
             self.startup_commands = service.startup[:]
             self.validation_commands = service.validate[:]
             self.shutdown_commands = service.shutdown[:]
@@ -115,6 +121,10 @@ class ServiceConfigDialog(Dialog):
                     self.shutdown_commands = list(service_config.shutdown)
                 if service_config.validate:
                     self.validation_commands = list(service_config.validate)
+                if service_config.directories:
+                    self.directories = list(service_config.directories)
+                if service_config.files:
+                    self.templates = list(service_config.files)
         except grpc.RpcError as e:
             self.app.show_grpc_exception("Get Service Error", e)
             self.has_error = True
@@ -145,25 +155,49 @@ class ServiceConfigDialog(Dialog):
         label.grid(pady=PADY)
 
         frame = ttk.Frame(tab)
-        frame.grid(sticky=tk.EW, pady=PADY)
+        frame.grid(sticky=tk.NSEW, pady=PADY)
+        frame.columnconfigure(0, weight=1)
         frame.columnconfigure(1, weight=1)
-        label = ttk.Label(frame, text="Directories")
-        label.grid(row=0, column=0, sticky=tk.W, padx=PADX)
-        state = "readonly" if self.directories else tk.DISABLED
-        directories_combobox = ttk.Combobox(frame, values=self.directories, state=state)
-        directories_combobox.grid(row=0, column=1, sticky=tk.EW, pady=PADY)
-        if self.directories:
-            directories_combobox.current(0)
-        label = ttk.Label(frame, text="Files")
-        label.grid(row=1, column=0, sticky=tk.W, padx=PADX)
-        state = "readonly" if self.templates else tk.DISABLED
-        self.templates_combobox = ttk.Combobox(
-            frame, values=self.templates, state=state
+        frame.rowconfigure(1, weight=1)
+
+        # directories
+        label_frame = ttk.LabelFrame(frame, text="Directories", padding=FRAME_PAD)
+        label_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=PADX)
+        label_frame.columnconfigure(0, weight=1)
+        label_frame.rowconfigure(0, weight=1)
+        listbox_scroll = ListboxScroll(label_frame)
+        listbox_scroll.listbox.config(height=4)
+        listbox_scroll.grid(sticky=tk.NSEW)
+        self.directories_listbox = listbox_scroll.listbox
+        for directory in self.directories:
+            self.directories_listbox.insert(tk.END, directory)
+        button_frame = ttk.Frame(label_frame)
+        button_frame.grid(row=1, column=0, pady=(5, 0))
+        button = ttk.Button(button_frame, text="Add", command=self.click_add_directory)
+        button.grid(row=0, column=0, padx=PADX)
+        button = ttk.Button(
+            button_frame, text="Remove", command=self.click_remove_directory
         )
-        self.templates_combobox.bind(
-            "<<ComboboxSelected>>", self.handle_template_changed
-        )
-        self.templates_combobox.grid(row=1, column=1, sticky=tk.EW, pady=PADY)
+        button.grid(row=0, column=1)
+
+        # files
+        label_frame = ttk.LabelFrame(frame, text="Files", padding=FRAME_PAD)
+        label_frame.grid(row=0, column=1, sticky=tk.NSEW)
+        label_frame.columnconfigure(0, weight=1)
+        label_frame.rowconfigure(0, weight=1)
+        listbox_scroll = ListboxScroll(label_frame)
+        listbox_scroll.listbox.config(height=4)
+        listbox_scroll.grid(sticky=tk.NSEW)
+        self.files_listbox = listbox_scroll.listbox
+        self.files_listbox.bind("<<ListboxSelect>>", self.handle_template_changed)
+        for template in self.templates:
+            self.files_listbox.insert(tk.END, template)
+        button_frame = ttk.Frame(label_frame)
+        button_frame.grid(row=1, column=0, pady=(5, 0))
+        button = ttk.Button(button_frame, text="Add", command=self.click_add_file)
+        button.grid(row=0, column=0, padx=PADX)
+        button = ttk.Button(button_frame, text="Remove", command=self.click_remove_file)
+        button.grid(row=0, column=1)
         # draw file template tab
         notebook = ttk.Notebook(tab)
         notebook.rowconfigure(0, weight=1)
@@ -188,11 +222,11 @@ class ServiceConfigDialog(Dialog):
         self.template_text.grid(sticky=tk.NSEW)
         self.template_text.text.bind("<FocusOut>", self.update_template_file_data)
         if self.templates:
-            self.templates_combobox.current(0)
+            self.files_listbox.selection_set(0)
             template_name = self.templates[0]
-            temp_data = self.temp_service_files[template_name]
+            temp_data = self.temp_service_files.get(template_name, "")
             self.template_text.set_text(temp_data)
-            rendered_data = self.rendered[template_name]
+            rendered_data = self.rendered.get(template_name, "")
             self.rendered_text.set_text(rendered_data)
         else:
             self.template_text.text.configure(state=tk.DISABLED)
@@ -351,6 +385,9 @@ class ServiceConfigDialog(Dialog):
             self.startup_commands = list(self.startup_commands_listbox.get(0, tk.END))
             self.shutdown_commands = list(self.shutdown_commands_listbox.get(0, tk.END))
             self.validation_commands = list(self.validate_commands_listbox.get(0, tk.END))
+        if self.directories_listbox is not None:
+            self.directories = list(self.directories_listbox.get(0, tk.END))
+            self.templates = list(self.files_listbox.get(0, tk.END))
         current_listbox = self.master.current.listbox
         if not self.is_custom():
             self.node.service_configs.pop(self.service_name, None)
@@ -364,10 +401,12 @@ class ServiceConfigDialog(Dialog):
                 service_config.config = {x.name: x.value for x in self.config.values()}
             for file in self.modified_files:
                 service_config.templates[file] = self.temp_service_files[file]
-            # Save custom commands
+            # Save custom commands and file/directory lists
             service_config.startup = list(self.startup_commands)
             service_config.shutdown = list(self.shutdown_commands)
             service_config.validate = list(self.validation_commands)
+            service_config.directories = list(self.directories)
+            service_config.files = list(self.templates)
             all_current = current_listbox.get(0, tk.END)
             current_listbox.itemconfig(all_current.index(self.service_name), bg="green")
         self.destroy()
@@ -415,30 +454,69 @@ class ServiceConfigDialog(Dialog):
             listbox.delete(selection[0])
 
     def handle_template_changed(self, event: tk.Event) -> None:
-        template_name = self.templates_combobox.get()
-        temp_data = self.temp_service_files[template_name]
+        selection = self.files_listbox.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        template_name = self.files_listbox.get(index)
+        temp_data = self.temp_service_files.get(template_name, "")
         self.template_text.set_text(temp_data)
-        rendered = self.rendered[template_name]
-        self.rendered_text.set_text(rendered)
+        rendered_data = self.rendered.get(template_name, "")
+        self.rendered_text.set_text(rendered_data)
+
+    def update_template_file_data(self, _event: tk.Event) -> None:
+        selection = self.files_listbox.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        template_name = self.files_listbox.get(index)
+        template_data = self.template_text.get_text()
+        self.temp_service_files[template_name] = template_data
+        if template_data != self.original_service_files.get(template_name):
+            self.modified_files.add(template_name)
+        else:
+            self.modified_files.discard(template_name)
+
+    def click_add_directory(self) -> None:
+        name = simpledialog.askstring("Add Directory", "Directory name:")
+        if name:
+            self.directories_listbox.insert(tk.END, name)
+
+    def click_remove_directory(self) -> None:
+        selection = self.directories_listbox.curselection()
+        if selection:
+            index = selection[0]
+            self.directories_listbox.delete(index)
+
+    def click_add_file(self) -> None:
+        name = simpledialog.askstring("Add File", "File name:")
+        if name:
+            self.files_listbox.insert(tk.END, name)
+            if name not in self.temp_service_files:
+                self.temp_service_files[name] = ""
+            self.template_text.text.configure(state=tk.NORMAL)
+            self.rendered_text.text.configure(state=tk.NORMAL)
+
+    def click_remove_file(self) -> None:
+        selection = self.files_listbox.curselection()
+        if selection:
+            index = selection[0]
+            name = self.files_listbox.get(index)
+            self.files_listbox.delete(index)
+            if name in self.temp_service_files:
+                del self.temp_service_files[name]
+            self.modified_files.discard(name)
+            if self.files_listbox.size() == 0:
+                self.template_text.set_text("")
+                self.rendered_text.set_text("")
+                self.template_text.text.configure(state=tk.DISABLED)
+                self.rendered_text.text.configure(state=tk.DISABLED)
 
     def handle_mode_changed(self, event: tk.Event) -> None:
         mode = self.modes_combobox.get()
         config = self.mode_configs[mode]
         logger.info("mode config: %s", config)
         self.config_frame.set_values(config)
-
-    def update_template_file_data(self, _event: tk.Event) -> None:
-        template = self.templates_combobox.get()
-        # check for change
-        self.temp_service_files[template] = self.rendered_text.get_text().strip()
-        if self.rendered[template] != self.temp_service_files[template]:
-            self.modified_files.add(template)
-            return
-        self.temp_service_files[template] = self.template_text.get_text().strip()
-        if self.temp_service_files[template] != self.original_service_files[template]:
-            self.modified_files.add(template)
-        else:
-            self.modified_files.discard(template)
 
     def is_custom(self) -> bool:
         has_custom_templates = len(self.modified_files) > 0
@@ -451,7 +529,15 @@ class ServiceConfigDialog(Dialog):
             or self.shutdown_commands != self.default_shutdown
             or self.validation_commands != self.default_validate
         )
-        return has_custom_templates or has_custom_config or has_custom_commands
+        has_custom_files = self.templates != self.default_files
+        has_custom_directories = self.directories != self.default_directories
+        return (
+            has_custom_templates
+            or has_custom_config
+            or has_custom_commands
+            or has_custom_files
+            or has_custom_directories
+        )
 
     def click_defaults(self) -> None:
         # clear all saved state data
@@ -463,11 +549,14 @@ class ServiceConfigDialog(Dialog):
         self.rendered = self.core.get_service_rendered(self.node.id, self.service_name)
         logger.info("cleared service config: %s", self.node.service_configs)
         # reset current selected file data and config data, if present
-        template_name = self.templates_combobox.get()
-        temp_data = self.temp_service_files[template_name]
-        self.template_text.set_text(temp_data)
-        rendered_data = self.rendered[template_name]
-        self.rendered_text.set_text(rendered_data)
+        selection = self.files_listbox.curselection()
+        if selection:
+            index = selection[0]
+            template_name = self.files_listbox.get(index)
+            temp_data = self.temp_service_files.get(template_name, "")
+            self.template_text.set_text(temp_data)
+            rendered_data = self.rendered.get(template_name, "")
+            self.rendered_text.set_text(rendered_data)
         if self.config_frame:
             logger.info("resetting defaults: %s", self.default_config)
             self.config_frame.set_values(self.default_config)

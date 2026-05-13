@@ -35,6 +35,8 @@ message ServiceConfig {
     repeated string startup = 3;
     repeated string shutdown = 4;
     repeated string validate = 5;
+    repeated string directories = 6;
+    repeated string files = 7;
 }
 
 message ServiceValidationMode {

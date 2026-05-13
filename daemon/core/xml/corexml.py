@@ -385,7 +385,27 @@ class CoreXmlWriter:
                         etree.SubElement(
                             validate_element, "command"
                         ).text = cmd
-                if service.custom_config or service.custom_templates:
+                if service.directories:
+                    directories_element = etree.SubElement(service_element, "directories")
+                    for directory in service.directories:
+                        etree.SubElement(
+                            directories_element, "directory"
+                        ).text = directory
+                if service.files:
+                    files_element = etree.SubElement(service_element, "files")
+                    for file in service.files:
+                        etree.SubElement(
+                            files_element, "file"
+                        ).text = file
+                if (
+                    service.custom_config
+                    or service.custom_templates
+                    or service.startup
+                    or service.shutdown
+                    or service.validate
+                    or service.directories
+                    or service.files
+                ):
                     service_configurations.append(service_element)
         if service_configurations.getchildren():
             self.scenario.append(service_configurations)
@@ -811,6 +831,20 @@ class CoreXmlReader:
                 for cmd_element in validate_element.iterchildren():
                     if cmd_element.text:
                         service.validate.append(cmd_element.text)
+            # Read directories
+            directories_element = service_element.find("directories")
+            if directories_element is not None:
+                service.directories = []
+                for dir_element in directories_element.iterchildren():
+                    if dir_element.text:
+                        service.directories.append(dir_element.text)
+            # Read files
+            files_element = service_element.find("files")
+            if files_element is not None:
+                service.files = []
+                for file_element in files_element.iterchildren():
+                    if file_element.text:
+                        service.files.append(file_element.text)
 
     def read_links(self) -> None:
         link_elements = self.scenario.find("links")

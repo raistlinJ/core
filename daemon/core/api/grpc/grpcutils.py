@@ -348,12 +348,16 @@ def get_node_proto(
             is_custom_startup = service.startup != service.__class__.startup
             is_custom_shutdown = service.shutdown != service.__class__.shutdown
             is_custom_validate = service.validate != service.__class__.validate
+            is_custom_files = service.files != service.__class__.files
+            is_custom_directories = service.directories != service.__class__.directories
             if not (
                 service.custom_templates
                 or service.custom_config
                 or is_custom_startup
                 or is_custom_shutdown
                 or is_custom_validate
+                or is_custom_files
+                or is_custom_directories
             ):
                 continue
             service_configs[service.name] = services_pb2.ServiceConfig(
@@ -362,6 +366,8 @@ def get_node_proto(
                 startup=service.startup,
                 shutdown=service.shutdown,
                 validate=service.validate,
+                directories=service.directories,
+                files=service.files,
             )
     return core_pb2.Node(
         id=node.id,
@@ -837,6 +843,10 @@ def configure_node(
                 service.shutdown = list(service_config.shutdown)
             if service_config.validate:
                 service.validate = list(service_config.validate)
+            if service_config.files:
+                service.files = list(service_config.files)
+            if service_config.directories:
+                service.directories = list(service_config.directories)
 
 
 def get_optional(message: Message, name: str) -> Any | None:
