@@ -146,8 +146,6 @@ class ServiceConfigDialog(Dialog):
         self.notebook.grid(sticky=tk.NSEW, pady=PADY)
         self.draw_tab_files()
         self.draw_tab_dirs()
-        self.draw_tab_dependencies()
-        self.draw_tab_executables()
         if self.config:
             self.draw_tab_config()
         self.draw_tab_startstop()
@@ -183,58 +181,6 @@ class ServiceConfigDialog(Dialog):
             button_frame, text="Remove", command=self.click_remove_directory
         )
         button.grid(row=0, column=2)
-
-    def draw_tab_dependencies(self) -> None:
-        tab = ttk.Frame(self.notebook, padding=FRAME_PAD)
-        tab.grid(sticky=tk.NSEW)
-        tab.columnconfigure(0, weight=1)
-        tab.rowconfigure(1, weight=1)
-        self.notebook.add(tab, text="Dependencies")
-
-        label = ttk.Label(tab, text="Other services that must start before this one.")
-        label.grid(pady=PADY)
-
-        listbox_scroll = ListboxScroll(tab)
-        listbox_scroll.listbox.config(height=10)
-        listbox_scroll.grid(sticky=tk.NSEW)
-        self.dependencies_listbox = listbox_scroll.listbox
-        for dependency in self.dependencies:
-            self.dependencies_listbox.insert(tk.END, dependency)
-
-        button_frame = ttk.Frame(tab)
-        button_frame.grid(pady=(5, 0))
-        button = ttk.Button(button_frame, text="Add", command=self.click_add_dependency)
-        button.grid(row=0, column=0, padx=PADX)
-        button = ttk.Button(
-            button_frame, text="Remove", command=self.click_remove_dependency
-        )
-        button.grid(row=0, column=1)
-
-    def draw_tab_executables(self) -> None:
-        tab = ttk.Frame(self.notebook, padding=FRAME_PAD)
-        tab.grid(sticky=tk.NSEW)
-        tab.columnconfigure(0, weight=1)
-        tab.rowconfigure(1, weight=1)
-        self.notebook.add(tab, text="Executables")
-
-        label = ttk.Label(tab, text="Binaries that must exist for this service.")
-        label.grid(pady=PADY)
-
-        listbox_scroll = ListboxScroll(tab)
-        listbox_scroll.listbox.config(height=10)
-        listbox_scroll.grid(sticky=tk.NSEW)
-        self.executables_listbox = listbox_scroll.listbox
-        for executable in self.executables:
-            self.executables_listbox.insert(tk.END, executable)
-
-        button_frame = ttk.Frame(tab)
-        button_frame.grid(pady=(5, 0))
-        button = ttk.Button(button_frame, text="Add", command=self.click_add_executable)
-        button.grid(row=0, column=0, padx=PADX)
-        button = ttk.Button(
-            button_frame, text="Remove", command=self.click_remove_executable
-        )
-        button.grid(row=0, column=1)
 
     def draw_tab_files(self) -> None:
         tab = ttk.Frame(self.notebook, padding=FRAME_PAD)
@@ -444,20 +390,34 @@ class ServiceConfigDialog(Dialog):
         label_frame.columnconfigure(0, weight=1)
         label_frame.rowconfigure(0, weight=1)
         listbox_scroll = ListboxScroll(label_frame)
+        listbox_scroll.listbox.config(height=4)
         listbox_scroll.grid(sticky=tk.NSEW)
-        tab.rowconfigure(listbox_scroll.grid_info()["row"], weight=1)
+        self.executables_listbox = listbox_scroll.listbox
         for executable in self.executables:
-            listbox_scroll.listbox.insert("end", executable)
+            self.executables_listbox.insert("end", executable)
+        button_frame = ttk.Frame(label_frame)
+        button_frame.grid(row=1, column=0, pady=(5, 0))
+        button = ttk.Button(button_frame, text="Add", command=self.click_add_executable)
+        button.grid(row=0, column=0, padx=PADX)
+        button = ttk.Button(button_frame, text="Remove", command=self.click_remove_executable)
+        button.grid(row=0, column=1)
 
         label_frame = ttk.LabelFrame(tab, text="Dependencies", padding=FRAME_PAD)
         label_frame.grid(sticky=tk.NSEW, pady=PADY)
         label_frame.columnconfigure(0, weight=1)
         label_frame.rowconfigure(0, weight=1)
         listbox_scroll = ListboxScroll(label_frame)
+        listbox_scroll.listbox.config(height=4)
         listbox_scroll.grid(sticky=tk.NSEW)
-        tab.rowconfigure(listbox_scroll.grid_info()["row"], weight=1)
+        self.dependencies_listbox = listbox_scroll.listbox
         for dependency in self.dependencies:
-            listbox_scroll.listbox.insert("end", dependency)
+            self.dependencies_listbox.insert("end", dependency)
+        button_frame = ttk.Frame(label_frame)
+        button_frame.grid(row=1, column=0, pady=(5, 0))
+        button = ttk.Button(button_frame, text="Add", command=self.click_add_dependency)
+        button.grid(row=0, column=0, padx=PADX)
+        button = ttk.Button(button_frame, text="Remove", command=self.click_remove_dependency)
+        button.grid(row=0, column=1)
 
     def draw_buttons(self) -> None:
         frame = ttk.Frame(self.top)
