@@ -84,6 +84,9 @@ class ServiceConfigDialog(Dialog):
             self.startup_commands = service.startup[:]
             self.validation_commands = service.validate[:]
             self.shutdown_commands = service.shutdown[:]
+            self.default_startup = service.startup[:]
+            self.default_validate = service.validate[:]
+            self.default_shutdown = service.shutdown[:]
             self.validation_mode = service.validation_mode
             self.validation_time = service.validation_timer
             self.validation_period.set(service.validation_period)
@@ -344,6 +347,10 @@ class ServiceConfigDialog(Dialog):
         button.grid(row=0, column=2, sticky=tk.EW)
 
     def click_apply(self) -> None:
+        if self.startup_commands_listbox is not None:
+            self.startup_commands = list(self.startup_commands_listbox.get(0, tk.END))
+            self.shutdown_commands = list(self.shutdown_commands_listbox.get(0, tk.END))
+            self.validation_commands = list(self.validate_commands_listbox.get(0, tk.END))
         current_listbox = self.master.current.listbox
         if not self.is_custom():
             self.node.service_configs.pop(self.service_name, None)
@@ -439,7 +446,12 @@ class ServiceConfigDialog(Dialog):
         if self.config_frame:
             current = self.config_frame.parse_config()
             has_custom_config = self.default_config != current
-        return has_custom_templates or has_custom_config
+        has_custom_commands = (
+            self.startup_commands != self.default_startup
+            or self.shutdown_commands != self.default_shutdown
+            or self.validation_commands != self.default_validate
+        )
+        return has_custom_templates or has_custom_config or has_custom_commands
 
     def click_defaults(self) -> None:
         # clear all saved state data
