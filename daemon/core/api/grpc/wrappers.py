@@ -150,6 +150,9 @@ class Service:
 class ServiceData:
     templates: dict[str, str] = field(default_factory=dict)
     config: dict[str, str] = field(default_factory=dict)
+    startup: list[str] = field(default_factory=list)
+    shutdown: list[str] = field(default_factory=list)
+    validate: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -674,7 +677,11 @@ class Node:
         service_configs = {}
         for service, service_config in self.service_configs.items():
             service_configs[service] = services_pb2.ServiceConfig(
-                templates=service_config.templates, config=service_config.config
+                templates=service_config.templates,
+                config=service_config.config,
+                startup=service_config.startup,
+                shutdown=service_config.shutdown,
+                validate=service_config.validate,
             )
         return core_pb2.Node(
             id=self.id,

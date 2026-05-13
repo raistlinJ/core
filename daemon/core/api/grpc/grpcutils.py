@@ -817,6 +817,13 @@ def configure_node(
                 service.set_config(dict(service_config.config))
             for name, template in service_config.templates.items():
                 service.set_template(name, template)
+            # Apply custom startup, shutdown, and validate commands
+            if service_config.startup:
+                service.startup = list(service_config.startup)
+            if service_config.shutdown:
+                service.shutdown = list(service_config.shutdown)
+            if service_config.validate:
+                service.validate = list(service_config.validate)
 
 
 def get_optional(message: Message, name: str) -> Any | None:

@@ -105,6 +105,13 @@ class ServiceConfigDialog(Dialog):
                 for file, data in service_config.templates.items():
                     self.modified_files.add(file)
                     self.temp_service_files[file] = data
+                # Load custom commands from service config if available
+                if service_config.startup:
+                    self.startup_commands = list(service_config.startup)
+                if service_config.shutdown:
+                    self.shutdown_commands = list(service_config.shutdown)
+                if service_config.validate:
+                    self.validation_commands = list(service_config.validate)
         except grpc.RpcError as e:
             self.app.show_grpc_exception("Get Service Error", e)
             self.has_error = True
@@ -219,39 +226,51 @@ class ServiceConfigDialog(Dialog):
         for i in range(3):
             tab.rowconfigure(i, weight=1)
         self.notebook.add(tab, text="Startup/Shutdown")
-        commands = []
         # tab 3
         for i in range(3):
             label_frame = None
+            command_list = None
+            listbox_attr = None
             if i == 0:
                 label_frame = ttk.LabelFrame(
                     tab, text="Startup Commands", padding=FRAME_PAD
                 )
-                commands = self.startup_commands
+                command_list = self.startup_commands
+                listbox_attr = "startup_commands_listbox"
             elif i == 1:
                 label_frame = ttk.LabelFrame(
                     tab, text="Shutdown Commands", padding=FRAME_PAD
                 )
-                commands = self.shutdown_commands
+                command_list = self.shutdown_commands
+                listbox_attr = "shutdown_commands_listbox"
             elif i == 2:
                 label_frame = ttk.LabelFrame(
                     tab, text="Validation Commands", padding=FRAME_PAD
                 )
-                commands = self.validation_commands
+                command_list = self.validation_commands
+                listbox_attr = "validate_commands_listbox"
             label_frame.columnconfigure(0, weight=1)
             label_frame.rowconfigure(0, weight=1)
             label_frame.grid(row=i, column=0, sticky=tk.NSEW, pady=PADY)
             listbox_scroll = ListboxScroll(label_frame)
-            for command in commands:
-                listbox_scroll.listbox.insert("end", command)
             listbox_scroll.listbox.config(height=4)
-            listbox_scroll.grid(sticky=tk.NSEW)
-            if i == 0:
-                self.startup_commands_listbox = listbox_scroll.listbox
-            elif i == 1:
-                self.shutdown_commands_listbox = listbox_scroll.listbox
-            elif i == 2:
-                self.validate_commands_listbox = listbox_scroll.listbox
+            listbox_scroll.grid(sticky=tk.NSEW, row=0, column=0, columnspan=2)
+            for command in command_list:
+                listbox_scroll.listbox.insert("end", command)
+            setattr(self, listbox_attr, listbox_scroll.listbox)
+            # Add buttons for add/remove
+            button_frame = ttk.Frame(label_frame)
+            button_frame.grid(row=1, column=0, columnspan=2, pady=(5, 0))
+            button_frame.columnconfigure(0, weight=1)
+            button_frame.columnconfigure(1, weight=1)
+            add_button = ttk.Button(
+                button_frame, text="Add", command=lambda attr=listbox_attr: self.click_add_command(attr)
+            )
+            add_button.grid(row=0, column=0, sticky=tk.EW, padx=(0, 5))
+            remove_button = ttk.Button(
+                button_frame, text="Remove", command=lambda attr=listbox_attr: self.click_remove_command(attr)
+            )
+            remove_button.grid(row=0, column=1, sticky=tk.EW)
 
     def draw_tab_validation(self) -> None:
         tab = ttk.Frame(self.notebook, padding=FRAME_PAD)
@@ -338,9 +357,55 @@ class ServiceConfigDialog(Dialog):
                 service_config.config = {x.name: x.value for x in self.config.values()}
             for file in self.modified_files:
                 service_config.templates[file] = self.temp_service_files[file]
+            # Save custom commands
+            service_config.startup = list(self.startup_commands)
+            service_config.shutdown = list(self.shutdown_commands)
+            service_config.validate = list(self.validation_commands)
             all_current = current_listbox.get(0, tk.END)
             current_listbox.itemconfig(all_current.index(self.service_name), bg="green")
         self.destroy()
+
+    def click_add_command(self, listbox_attr: str) -> None:
+        listbox = getattr(self, listbox_attr)
+        # Create a simple entry dialog for adding a command
+        dialog = tk.Toplevel(self.top)
+        dialog.title("Add Command")
+        dialog.transient(self.top)
+        dialog.grab_set()
+
+        frame = ttk.Frame(dialog)
+        frame.pack(padx=20, pady=20)
+
+        label = ttk.Label(frame, text="Command:")
+        label.grid(row=0, column=0, sticky=tk.W, pady=5)
+        entry = ttk.Entry(frame, width=50)
+        entry.grid(row=0, column=1, sticky=tk.EW, pady=5)
+
+        def add_command():
+            cmd = entry.get().strip()
+            if cmd:
+                listbox.insert(tk.END, cmd)
+                dialog.destroy()
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.grid(row=1, column=0, columnspan=2, pady=10)
+        add_btn = ttk.Button(btn_frame, text="Add", command=add_command)
+        add_btn.pack(side=tk.LEFT, padx=5)
+        cancel_btn = ttk.Button(btn_frame, text="Cancel", command=dialog.destroy)
+        cancel_btn.pack(side=tk.LEFT, padx=5)
+
+        # Focus entry and bind Enter key
+        entry.focus_set()
+        dialog.bind("<Return>", lambda e: add_command())
+
+        # Wait for dialog to close
+        self.top.wait_window(dialog)
+
+    def click_remove_command(self, listbox_attr: str) -> None:
+        listbox = getattr(self, listbox_attr)
+        selection = listbox.curselection()
+        if selection:
+            listbox.delete(selection[0])
 
     def handle_template_changed(self, event: tk.Event) -> None:
         template_name = self.templates_combobox.get()
