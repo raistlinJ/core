@@ -511,11 +511,15 @@ class ServiceConfigDialog(Dialog):
     def click_add_directory(self) -> None:
         name = simpledialog.askstring("Add Directory", "Enter directory path:")
         if name:
+            if name in self.directories_listbox.get(0, tk.END):
+                return
             self.directories_listbox.insert(tk.END, name)
 
     def click_browse_directory(self) -> None:
         path = filedialog.askdirectory(title="Select Private Directory")
         if path:
+            if path in self.directories_listbox.get(0, tk.END):
+                return
             self.directories_listbox.insert(tk.END, path)
 
     def click_remove_directory(self) -> None:
@@ -527,6 +531,8 @@ class ServiceConfigDialog(Dialog):
     def click_add_file(self) -> None:
         name = simpledialog.askstring("Add File", "Enter file name:")
         if name:
+            if name in self.files_listbox.get(0, tk.END):
+                return
             self.files_listbox.insert(tk.END, name)
             self.temp_service_files[name] = ""
             self.files_listbox.selection_clear(0, tk.END)
@@ -540,6 +546,8 @@ class ServiceConfigDialog(Dialog):
         if path:
             path = Path(path)
             name = path.name
+            if name in self.files_listbox.get(0, tk.END):
+                return
             try:
                 data = path.read_text()
                 self.files_listbox.insert(tk.END, name)
