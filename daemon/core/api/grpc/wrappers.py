@@ -618,6 +618,7 @@ class Node:
     image: str = None
     compose: str = None
     compose_name: str = None
+    image_compatibility: bool = False
     server: str = None
     geo: Geo = None
     dir: str = None
@@ -667,6 +668,7 @@ class Node:
             image=proto.image,
             compose=proto.compose,
             compose_name=proto.compose_name,
+            image_compatibility=proto.image_compatibility,
             server=proto.server,
             geo=Geo.from_proto(proto.geo),
             dir=proto.dir,
@@ -716,6 +718,7 @@ class Node:
             image=self.image,
             compose=self.compose,
             compose_name=self.compose_name,
+            image_compatibility=self.image_compatibility,
             server=self.server,
             dir=self.dir,
             channel=self.channel,

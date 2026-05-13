@@ -586,6 +586,7 @@ message Node {
     map<string, common.ConfigOption> wireless_config = 19;
     string compose = 20;
     string compose_name = 21;
+    bool image_compatibility = 22;
 }
 
 message Link {

@@ -188,6 +188,9 @@ class NodeConfigDialog(Dialog):
         self.name: tk.StringVar = tk.StringVar(value=self.node.name)
         self.type: tk.StringVar = tk.StringVar(value=self.node.model)
         self.container_image: tk.StringVar = tk.StringVar(value=self.node.image)
+        self.image_compatibility: tk.BooleanVar = tk.BooleanVar(
+            value=self.node.image_compatibility
+        )
         self.compose_file: tk.StringVar = tk.StringVar(value=self.node.compose)
         self.compose_name: tk.StringVar = tk.StringVar(value=self.node.compose_name)
         server = DEFAULT_SERVER
@@ -272,6 +275,12 @@ class NodeConfigDialog(Dialog):
                 overview_frame, textvariable=self.container_image, state=state
             )
             entry.grid(row=overview_row, column=1, sticky=tk.EW)
+            overview_row += 1
+            # image compatibility
+            checkbutton = ttk.Checkbutton(
+                overview_frame, text="Image Compatibility", variable=self.image_compatibility, state=state
+            )
+            checkbutton.grid(row=overview_row, column=1, sticky=tk.W)
             overview_row += 1
             # compose file
             compose_frame = ttk.Frame(overview_frame)
@@ -451,6 +460,7 @@ class NodeConfigDialog(Dialog):
         self.node.name = self.name.get()
         if nutils.has_image(self.node.type):
             self.node.image = self.container_image.get() or None
+            self.node.image_compatibility = self.image_compatibility.get()
             self.node.compose = self.compose_file.get() or None
             self.node.compose_name = self.compose_name.get() or None
             if self.node.compose and not self.node.compose_name:

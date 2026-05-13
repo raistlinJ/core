@@ -63,6 +63,11 @@ def get_int(element: etree.Element, name: str) -> int | None:
     return get_type(element, name, int)
 
 
+def get_bool(element: etree.Element, name: str) -> bool:
+    value = element.get(name)
+    return value == "True" or value == "1"
+
+
 def add_attribute(element: etree.Element, name: str, value: Any) -> None:
     if value is not None:
         element.set(name, str(value))
@@ -173,6 +178,8 @@ class DeviceElement(NodeElement):
         add_attribute(self.element, "image", image)
         add_attribute(self.element, "compose", compose)
         add_attribute(self.element, "compose_name", compose_name)
+        if isinstance(self.node, (DockerNode, PodmanNode)):
+            add_attribute(self.element, "image_compatibility", self.node.image_compatibility)
 
     def add_services(self) -> None:
         service_elements = etree.Element("services")
@@ -719,6 +726,7 @@ class CoreXmlReader:
         image = device_element.get("image")
         compose = device_element.get("compose")
         compose_name = device_element.get("compose_name")
+        image_compatibility = get_bool(device_element, "image_compatibility")
         server = device_element.get("server")
         canvas = get_int(device_element, "canvas")
         node_type = NodeTypes.DEFAULT
@@ -744,6 +752,7 @@ class CoreXmlReader:
             options.image = image
             options.compose = compose
             options.compose_name = compose_name
+            options.image_compatibility = image_compatibility
         # get position information
         position_element = device_element.find("position")
         position = None

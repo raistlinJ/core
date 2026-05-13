@@ -44,6 +44,7 @@ class PodmanOptions(CoreNodeOptions):
     """
     Service name to start, within the provided compose file.
     """
+    image_compatibility: bool = False
 
 
 @dataclass
@@ -88,6 +89,7 @@ class PodmanNode(CoreNode):
         self.image: str = options.image
         self.compose: str | None = options.compose
         self.compose_name: str | None = options.compose_name
+        self.image_compatibility: bool = options.image_compatibility
         self.binds: list[tuple[str, str]] = options.binds
         self.volumes: dict[str, VolumeMount] = {}
         for src, dst, unique, delete in options.volumes:
@@ -213,6 +215,51 @@ class PodmanNode(CoreNode):
             )
             logger.debug("node(%s) pid: %s", self.name, self.pid)
             self.up = True
+            if self.image_compatibility:
+                self.check_image_compatibility()
+
+    def check_image_compatibility(self) -> None:
+        """
+        Checks for required packages and attempts to install them if missing.
+        """
+        required_tools = ["bash", "ip"]
+        missing_tools = []
+        for tool in required_tools:
+            try:
+                self.cmd(f"which {tool}")
+            except CoreCommandError:
+                missing_tools.append(tool)
+
+        if not missing_tools:
+            return
+
+        logger.info("node(%s) missing tools: %s", self.name, missing_tools)
+        # try to install missing tools using common package managers
+        # 1. apt-get (Debian/Ubuntu)
+        # 2. apk (Alpine)
+        # 3. yum (CentOS/Fedora)
+        install_cmds = [
+            ("apt-get update && apt-get install -y", ["bash", "iproute2"]),
+            ("apk add", ["bash", "iproute2"]),
+            ("yum install -y", ["bash", "iproute"]),
+        ]
+
+        for pkg_manager, packages in install_cmds:
+            try:
+                self.cmd(f"which {pkg_manager.split()[0]}")
+                # check which of the missing tools map to these packages
+                to_install = []
+                if "bash" in missing_tools:
+                    to_install.append(packages[0])
+                if "ip" in missing_tools:
+                    to_install.append(packages[1])
+
+                if to_install:
+                    logger.info("node(%s) attempting to install %s using %s", self.name, to_install, pkg_manager)
+                    self.cmd(f"{pkg_manager} {' '.join(to_install)}")
+                    return # success
+            except CoreCommandError:
+                continue
 
     def shutdown(self) -> None:
         """
