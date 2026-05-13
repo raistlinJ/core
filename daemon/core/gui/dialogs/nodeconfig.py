@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import netaddr
 from netaddr import AddrFormatError, IPNetwork
 from PIL.ImageTk import PhotoImage
+import yaml
 
 from core.api.grpc.wrappers import Interface, Node
 from core.gui import images
@@ -201,7 +202,10 @@ class NodeConfigDialog(Dialog):
         subnets = self.app.core.ifaces_manager.get_wireless_nets(self.node.id)
         self.ip4_subnet: tk.StringVar = tk.StringVar(value=str(subnets.ip4))
         self.ip6_subnet: tk.StringVar = tk.StringVar(value=str(subnets.ip6))
+        self.compose_name_combobox: ttk.Combobox | None = None
         self.draw()
+        if self.compose_file.get():
+            self.update_compose_services()
 
     def draw(self) -> None:
         self.top.columnconfigure(0, weight=1)
@@ -312,10 +316,10 @@ class NodeConfigDialog(Dialog):
             # compose name
             label = ttk.Label(overview_frame, text="Compose Name")
             label.grid(row=overview_row, column=0, sticky=tk.EW, padx=PADX, pady=PADY)
-            entry = ttk.Entry(
-                overview_frame, textvariable=self.compose_name, state=state
+            self.compose_name_combobox = ttk.Combobox(
+                overview_frame, textvariable=self.compose_name, state=combo_state
             )
-            entry.grid(row=overview_row, column=1, sticky=tk.EW)
+            self.compose_name_combobox.grid(row=overview_row, column=1, sticky=tk.EW)
             overview_row += 1
 
         if nutils.is_rj45(self.node):
@@ -525,6 +529,25 @@ class NodeConfigDialog(Dialog):
         )
         if file_path:
             self.compose_file.set(file_path)
+            self.update_compose_services()
 
     def click_compose_clear(self) -> None:
         self.compose_file.set("")
+        self.update_compose_services()
+
+    def update_compose_services(self) -> None:
+        file_path = self.compose_file.get()
+        if not file_path or not self.compose_name_combobox:
+            if self.compose_name_combobox:
+                self.compose_name_combobox.config(values=[])
+            return
+        try:
+            with open(file_path, "r") as f:
+                data = yaml.safe_load(f)
+                services = list(data.get("services", {}).keys())
+                self.compose_name_combobox.config(values=services)
+                if services and not self.compose_name.get():
+                    self.compose_name.set(services[0])
+        except Exception as e:
+            logger.error("error reading compose file: %s", e)
+            self.compose_name_combobox.config(values=[])
