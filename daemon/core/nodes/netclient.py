@@ -154,9 +154,9 @@ class LinuxNetClient:
         :return: nothing
         """
         if broadcast is not None:
-            self.run(f"{IP} address add {address} broadcast {broadcast} dev {device}")
+            self.run(f"{IP} address replace {address} broadcast {broadcast} dev {device}")
         else:
-            self.run(f"{IP} address add {address} dev {device}")
+            self.run(f"{IP} address replace {address} dev {device}")
         if netaddr.valid_ipv6(address.split("/")[0]):
             # IPv6 addresses are removed by default on interface down.
             # Make sure that the IPv6 address we add is not removed
