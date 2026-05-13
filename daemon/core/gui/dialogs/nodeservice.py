@@ -129,7 +129,7 @@ class NodeServiceDialog(Dialog):
         for name in sorted(self.current_services):
             self.current.listbox.insert(tk.END, name)
             if self.is_custom_service(name):
-                self.current.listbox.itemconfig(tk.END, bg="green")
+                self.current.listbox.itemconfig(tk.END, bg="#4a6984", fg="white")
 
     def click_save(self) -> None:
         self.node.services = self.current_services.copy()
