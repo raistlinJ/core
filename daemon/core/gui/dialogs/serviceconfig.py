@@ -136,8 +136,8 @@ class ServiceConfigDialog(Dialog):
         # draw notebook
         self.notebook = ttk.Notebook(self.top)
         self.notebook.grid(sticky=tk.NSEW, pady=PADY)
-        self.draw_tab_dirs()
         self.draw_tab_files()
+        self.draw_tab_dirs()
         if self.config:
             self.draw_tab_config()
         self.draw_tab_startstop()
