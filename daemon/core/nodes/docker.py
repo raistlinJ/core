@@ -298,8 +298,12 @@ class DockerNode(CoreNode):
             image = self.image
             if not image:
                 # for compose, try to find image from running container
-                image = self.host_cmd(f"{DOCKER} inspect -f '{{{{.Config.Image}}}}' {self.name}")
+                image = self.host_cmd(f"{DOCKER} inspect -f '{{{{.Config.Image}}}}' {self.name}").strip()
                 logger.info("node(%s) discovered image: %s", self.name, image)
+            
+            if not image:
+                logger.warning("node(%s) could not determine image for default command", self.name)
+                return
 
             # get image config
             data = self.host_cmd(f"{DOCKER} inspect -f '{{{{json .Config}}}}' {image}")
@@ -307,14 +311,21 @@ class DockerNode(CoreNode):
             entrypoint = config.get("Entrypoint") or []
             cmd = config.get("Cmd") or []
             
+            # handle case where entrypoint/cmd might be None or not list
+            if not isinstance(entrypoint, list):
+                entrypoint = [entrypoint] if entrypoint else []
+            if not isinstance(cmd, list):
+                cmd = [cmd] if cmd else []
+
             full_cmd = entrypoint + cmd
             if full_cmd:
                 cmd_str = " ".join(shlex.quote(x) for x in full_cmd)
                 logger.info("node(%s) running default command: %s", self.name, cmd_str)
                 # run in background using docker exec -d
-                self.host_cmd(f"{DOCKER} exec -d {self.name} {cmd_str}")
+                result = self.host_cmd(f"{DOCKER} exec -d {self.name} {cmd_str}")
+                logger.info("node(%s) exec result: %s", self.name, result.strip())
             else:
-                logger.warning("node(%s) image %s has no default ENTRYPOINT or CMD", self.name, self.image)
+                logger.warning("node(%s) image %s has no default ENTRYPOINT or CMD", self.name, image)
         except Exception as e:
             logger.error("node(%s) failed to run default command: %s", self.name, e)
 

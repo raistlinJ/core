@@ -196,6 +196,9 @@ class NodeConfigDialog(Dialog):
         self.run_image_default: tk.BooleanVar = tk.BooleanVar(
             value=self.node.run_image_default
         )
+        self.container_mode: tk.StringVar = tk.StringVar(
+            value="compose" if self.node.compose else "docker"
+        )
         self.compose_file: tk.StringVar = tk.StringVar(value=self.node.compose)
         self.compose_name: tk.StringVar = tk.StringVar(value=self.node.compose_name)
         server = DEFAULT_SERVER
@@ -274,36 +277,58 @@ class NodeConfigDialog(Dialog):
             combobox.grid(row=overview_row, column=1, sticky=tk.EW)
             overview_row += 1
 
-        # container image field
+        # container options
         if nutils.has_image(self.node.type):
-            # image name
-            label = ttk.Label(overview_frame, text="Image")
-            label.grid(row=overview_row, column=0, sticky=tk.EW, padx=PADX, pady=PADY)
-            entry = ttk.Entry(
-                overview_frame, textvariable=self.container_image, state=state
-            )
-            entry.grid(row=overview_row, column=1, sticky=tk.EW)
+            # mode selection
+            mode_frame = ttk.Frame(overview_frame)
+            mode_frame.grid(row=overview_row, column=0, columnspan=2, sticky=tk.EW, pady=PADY)
             overview_row += 1
+            ttk.Radiobutton(
+                mode_frame, text="Docker Image", variable=self.container_mode, value="docker", state=state
+            ).pack(side=tk.LEFT, padx=PADX)
+            ttk.Radiobutton(
+                mode_frame, text="Docker Compose", variable=self.container_mode, value="compose", state=state
+            ).pack(side=tk.LEFT, padx=PADX)
+
+            # docker section
+            docker_frame = ttk.LabelFrame(overview_frame, text="Docker Options", padding=PADX)
+            docker_frame.grid(row=overview_row, column=0, columnspan=2, sticky=tk.EW, pady=PADY)
+            overview_row += 1
+            docker_row = 0
+            # image name
+            label = ttk.Label(docker_frame, text="Image")
+            label.grid(row=docker_row, column=0, sticky=tk.EW, padx=PADX, pady=PADY)
+            entry = ttk.Entry(
+                docker_frame, textvariable=self.container_image, state=state
+            )
+            entry.grid(row=docker_row, column=1, sticky=tk.EW)
+            docker_row += 1
             # image compatibility
             checkbutton = ttk.Checkbutton(
-                overview_frame, text="Image Compatibility", variable=self.image_compatibility, state=state
+                docker_frame, text="Image Compatibility", variable=self.image_compatibility, state=state
             )
-            checkbutton.grid(row=overview_row, column=1, sticky=tk.W)
-            overview_row += 1
+            checkbutton.grid(row=docker_row, column=1, sticky=tk.W)
+            docker_row += 1
             # run image default
             checkbutton = ttk.Checkbutton(
-                overview_frame, text="Run Image Default", variable=self.run_image_default, state=state
+                docker_frame, text="Run Image Default", variable=self.run_image_default, state=state
             )
-            checkbutton.grid(row=overview_row, column=1, sticky=tk.W)
-            overview_row += 1
+            checkbutton.grid(row=docker_row, column=1, sticky=tk.W)
+            docker_row += 1
             # docker command
-            label = ttk.Label(overview_frame, text="Command")
-            label.grid(row=overview_row, column=0, sticky=tk.EW, padx=PADX, pady=PADY)
-            entry = ttk.Entry(overview_frame, textvariable=self.docker_command, state=state)
-            entry.grid(row=overview_row, column=1, sticky=tk.EW)
+            label = ttk.Label(docker_frame, text="Startup Commands")
+            label.grid(row=docker_row, column=0, sticky=tk.EW, padx=PADX, pady=PADY)
+            entry = ttk.Entry(docker_frame, textvariable=self.docker_command, state=state)
+            entry.grid(row=docker_row, column=1, sticky=tk.EW)
+            docker_row += 1
+
+            # compose section
+            compose_section_frame = ttk.LabelFrame(overview_frame, text="Compose Options", padding=PADX)
+            compose_section_frame.grid(row=overview_row, column=0, columnspan=2, sticky=tk.EW, pady=PADY)
             overview_row += 1
+            compose_row = 0
             # compose file
-            compose_frame = ttk.Frame(overview_frame)
+            compose_frame = ttk.Frame(compose_section_frame)
             compose_frame.columnconfigure(0, weight=2)
             compose_frame.columnconfigure(1, weight=1)
             compose_frame.columnconfigure(2, weight=1)
@@ -326,17 +351,38 @@ class NodeConfigDialog(Dialog):
             )
             button.grid(row=0, column=2, sticky=tk.EW)
             compose_frame.grid(
-                row=overview_row, column=0, columnspan=2, sticky=tk.EW, pady=PADY
+                row=compose_row, column=0, columnspan=2, sticky=tk.EW, pady=PADY
             )
-            overview_row += 1
+            compose_row += 1
             # compose name
-            label = ttk.Label(overview_frame, text="Compose Name")
-            label.grid(row=overview_row, column=0, sticky=tk.EW, padx=PADX, pady=PADY)
+            label = ttk.Label(compose_section_frame, text="Compose Name")
+            label.grid(row=compose_row, column=0, sticky=tk.EW, padx=PADX, pady=PADY)
             self.compose_name_combobox = ttk.Combobox(
-                overview_frame, textvariable=self.compose_name, state=combo_state
+                compose_section_frame, textvariable=self.compose_name, state=combo_state
             )
-            self.compose_name_combobox.grid(row=overview_row, column=1, sticky=tk.EW)
-            overview_row += 1
+            self.compose_name_combobox.grid(row=compose_row, column=1, sticky=tk.EW)
+            compose_row += 1
+
+            # define state trace for mode
+            def update_states(*args):
+                mode = self.container_mode.get()
+                if mode == "docker":
+                    for child in docker_frame.winfo_children():
+                        if isinstance(child, (ttk.Entry, ttk.Checkbutton)):
+                            child.configure(state=state)
+                    for child in compose_section_frame.winfo_children():
+                        if isinstance(child, (ttk.Entry, ttk.Button, ttk.Combobox)):
+                            child.configure(state=tk.DISABLED)
+                else:
+                    for child in docker_frame.winfo_children():
+                        if isinstance(child, (ttk.Entry, ttk.Checkbutton)):
+                            child.configure(state=tk.DISABLED)
+                    for child in compose_section_frame.winfo_children():
+                        if isinstance(child, (ttk.Entry, ttk.Button, ttk.Combobox)):
+                            child.configure(state=state)
+            
+            self.container_mode.trace_add("write", update_states)
+            update_states()
 
         if nutils.is_rj45(self.node):
             ifaces = self.app.core.client.get_ifaces()
@@ -479,13 +525,22 @@ class NodeConfigDialog(Dialog):
         # update core node
         self.node.name = self.name.get()
         if nutils.has_image(self.node.type):
-            self.node.image = self.container_image.get() or None
-            self.node.image_compatibility = self.image_compatibility.get()
-            self.node.docker_command = self.docker_command.get() or None
-            self.node.run_image_default = self.run_image_default.get()
-            self.node.compose = self.compose_file.get() or None
-            self.node.compose_name = self.compose_name.get() or None
-            if self.node.compose and not self.node.compose_name:
+            mode = self.container_mode.get()
+            if mode == "docker":
+                self.node.image = self.container_image.get() or None
+                self.node.image_compatibility = self.image_compatibility.get()
+                self.node.docker_command = self.docker_command.get() or None
+                self.node.run_image_default = self.run_image_default.get()
+                self.node.compose = None
+                self.node.compose_name = None
+            else:
+                self.node.image = self.container_image.get() or None
+                self.node.image_compatibility = self.image_compatibility.get()
+                self.node.docker_command = self.docker_command.get() or None
+                self.node.run_image_default = self.run_image_default.get()
+                self.node.compose = self.compose_file.get() or None
+                self.node.compose_name = self.compose_name.get() or None
+                if self.node.compose and not self.node.compose_name:
                 messagebox.showerror(
                     "Compose Error",
                     "Name required when using a compose file",
