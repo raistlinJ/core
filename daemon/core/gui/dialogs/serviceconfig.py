@@ -136,6 +136,7 @@ class ServiceConfigDialog(Dialog):
         # draw notebook
         self.notebook = ttk.Notebook(self.top)
         self.notebook.grid(sticky=tk.NSEW, pady=PADY)
+        self.draw_tab_dirs()
         self.draw_tab_files()
         if self.config:
             self.draw_tab_config()
@@ -143,37 +144,25 @@ class ServiceConfigDialog(Dialog):
         self.draw_tab_validation()
         self.draw_buttons()
 
-    def draw_tab_files(self) -> None:
+    def draw_tab_dirs(self) -> None:
         tab = ttk.Frame(self.notebook, padding=FRAME_PAD)
         tab.grid(sticky=tk.NSEW)
         tab.columnconfigure(0, weight=1)
-        tab.rowconfigure(2, weight=1)
-        self.notebook.add(tab, text="Directories/Files")
+        tab.rowconfigure(1, weight=1)
+        self.notebook.add(tab, text="Directories")
 
-        label = ttk.Label(
-            tab, text="Directories and templates that will be used for this service."
-        )
+        label = ttk.Label(tab, text="Private directories that will be created on the node.")
         label.grid(pady=PADY)
 
-        frame = ttk.Frame(tab)
-        frame.grid(sticky=tk.NSEW, pady=PADY)
-        frame.columnconfigure(0, weight=1)
-        frame.columnconfigure(1, weight=1)
-        frame.rowconfigure(1, weight=1)
-
-        # directories
-        label_frame = ttk.LabelFrame(frame, text="Directories", padding=FRAME_PAD)
-        label_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=PADX)
-        label_frame.columnconfigure(0, weight=1)
-        label_frame.rowconfigure(0, weight=1)
-        listbox_scroll = ListboxScroll(label_frame)
-        listbox_scroll.listbox.config(height=4)
+        listbox_scroll = ListboxScroll(tab)
+        listbox_scroll.listbox.config(height=10)
         listbox_scroll.grid(sticky=tk.NSEW)
         self.directories_listbox = listbox_scroll.listbox
         for directory in self.directories:
             self.directories_listbox.insert(tk.END, directory)
-        button_frame = ttk.Frame(label_frame)
-        button_frame.grid(row=1, column=0, pady=(5, 0))
+
+        button_frame = ttk.Frame(tab)
+        button_frame.grid(pady=(5, 0))
         button = ttk.Button(button_frame, text="Add", command=self.click_add_directory)
         button.grid(row=0, column=0, padx=PADX)
         button = ttk.Button(
@@ -185,9 +174,26 @@ class ServiceConfigDialog(Dialog):
         )
         button.grid(row=0, column=2)
 
+    def draw_tab_files(self) -> None:
+        tab = ttk.Frame(self.notebook, padding=FRAME_PAD)
+        tab.grid(sticky=tk.NSEW)
+        tab.columnconfigure(0, weight=1)
+        tab.rowconfigure(2, weight=1)
+        self.notebook.add(tab, text="Files")
+
+        label = ttk.Label(
+            tab, text="Files and templates that will be used for this service."
+        )
+        label.grid(pady=PADY)
+
+        frame = ttk.Frame(tab)
+        frame.grid(sticky=tk.NSEW, pady=PADY)
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+
         # files
         label_frame = ttk.LabelFrame(frame, text="Files", padding=FRAME_PAD)
-        label_frame.grid(row=0, column=1, sticky=tk.NSEW)
+        label_frame.grid(row=0, column=0, sticky=tk.NSEW)
         label_frame.columnconfigure(0, weight=1)
         label_frame.rowconfigure(0, weight=1)
         listbox_scroll = ListboxScroll(label_frame)
@@ -427,7 +433,10 @@ class ServiceConfigDialog(Dialog):
         dialog.transient(self.top)
         dialog.grab_set()
 
-        frame = ttk.Frame(dialog)
+        main_frame = ttk.Frame(dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        frame = ttk.Frame(main_frame)
         frame.pack(padx=20, pady=20)
 
         label = ttk.Label(frame, text="Command:")
