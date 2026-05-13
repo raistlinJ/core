@@ -230,7 +230,12 @@ class DockerNode(CoreNode):
                 compose_path = os.path.expandvars(self.compose)
                 data = self.host_cmd(f"cat {compose_path}")
                 template = Template(data)
-                rendered = template.render_unicode(node=self, hostname=hostname)
+                rendered = template.render_unicode(
+                    node=self, 
+                    hostname=hostname,
+                    docker=DOCKER,
+                    docker_compose=DOCKER_COMPOSE
+                )
                 rendered = rendered.replace('"', r"\"")
                 rendered = "\\n".join(rendered.splitlines())
                 compose_path = self.directory / "docker-compose.yml"
@@ -290,8 +295,14 @@ class DockerNode(CoreNode):
         """
         logger.info("node(%s) attempting to run image default command", self.name)
         try:
+            image = self.image
+            if not image:
+                # for compose, try to find image from running container
+                image = self.host_cmd(f"{DOCKER} inspect -f '{{{{.Config.Image}}}}' {self.name}")
+                logger.info("node(%s) discovered image: %s", self.name, image)
+
             # get image config
-            data = self.host_cmd(f"{DOCKER} inspect -f '{{{{json .Config}}}}' {self.image}")
+            data = self.host_cmd(f"{DOCKER} inspect -f '{{{{json .Config}}}}' {image}")
             config = json.loads(data)
             entrypoint = config.get("Entrypoint") or []
             cmd = config.get("Cmd") or []
