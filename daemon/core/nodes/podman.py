@@ -231,8 +231,10 @@ class PodmanNode(CoreNode):
                     )
                     link_path = self.host_path(Path(volume.dst), True)
                     self.host_cmd(f"ln -s {volume.path} {link_path}")
-            self.pid = self.host_cmd(
-                f"{PODMAN} inspect -f '{{{{.State.Pid}}}}' {self.name}"
+            self.pid = int(
+                self.host_cmd(
+                    f"{PODMAN} inspect -f '{{{{.State.Pid}}}}' {self.name}"
+                ).strip()
             )
             logger.debug("node(%s) pid: %s", self.name, self.pid)
             self.up = True

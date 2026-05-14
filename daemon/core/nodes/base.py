@@ -902,7 +902,42 @@ class CoreNode(CoreNodeBase):
         if iface_id == -1:
             raise CoreError(f"adopting unknown iface({iface.name})")
         # add iface to container namespace
-        self.net_client.device_ns(iface.name, str(self.pid))
+        try:
+            self.net_client.device_ns(iface.name, str(self.pid))
+        except CoreCommandError as e:
+            error = str(e)
+            # Container PID can change/disappear between creation and iface adoption.
+            if "No such process" not in error:
+                raise
+            refreshed = False
+            try:
+                from core.nodes.docker import DockerNode
+                from core.nodes.podman import PodmanNode
+
+                if isinstance(self, DockerNode):
+                    self.pid = int(
+                        self.host_cmd(
+                            f"docker inspect -f '{{{{.State.Pid}}}}' {self.name}"
+                        ).strip()
+                    )
+                    refreshed = True
+                elif isinstance(self, PodmanNode):
+                    self.pid = int(
+                        self.host_cmd(
+                            f"podman inspect -f '{{{{.State.Pid}}}}' {self.name}"
+                        ).strip()
+                    )
+                    refreshed = True
+            except Exception:
+                logger.exception("failed to refresh container pid for node(%s)", self.name)
+            if not refreshed or self.pid <= 0:
+                raise
+            logger.warning(
+                "retrying namespace move for interface(%s) with refreshed pid(%s)",
+                iface.name,
+                self.pid,
+            )
+            self.net_client.device_ns(iface.name, str(self.pid))
         # use default iface name for container, if a unique name was not provided
         if iface.name == name:
             name = f"eth{iface_id}"

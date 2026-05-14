@@ -284,8 +284,10 @@ class DockerNode(CoreNode):
                     link_path = self.host_path(Path(volume.dst), True)
                     self.host_cmd(f"ln -s {volume.path} {link_path}")
             # retrieve pid and process environment for use in nsenter commands
-            self.pid = self.host_cmd(
-                f"{DOCKER} inspect -f '{{{{.State.Pid}}}}' {self.name}"
+            self.pid = int(
+                self.host_cmd(
+                    f"{DOCKER} inspect -f '{{{{.State.Pid}}}}' {self.name}"
+                ).strip()
             )
             output = self.host_cmd(f"cat /proc/{self.pid}/environ")
             for line in output.split("\x00"):
