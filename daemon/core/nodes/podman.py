@@ -168,11 +168,11 @@ class PodmanNode(CoreNode):
             # create node directory
             self.makenodedir()
             hostname = self.name.replace("_", "-")
+            startup_command = (self.docker_command or "").strip()
             if self.compose:
                 if not self.compose_name:
                     raise CoreError(
                         "a compose name is required when using a compose file"
-                    startup_command = (self.docker_command or "").strip()
                     )
                 compose_path = os.path.expandvars(self.compose)
                 data = self.host_cmd(f"cat {compose_path}")
@@ -183,7 +183,7 @@ class PodmanNode(CoreNode):
                     podman=PODMAN,
                     podman_compose=PODMAN_COMPOSE
                 )
-                rendered = rendered.replace('"', r"\"")
+                rendered = rendered.replace('"', r'\"')
                 rendered = "\\n".join(rendered.splitlines())
                 compose_path = self.directory / "podman-compose.yml"
                 self.host_cmd(f'printf "{rendered}" >> {compose_path}', shell=True)
@@ -201,31 +201,24 @@ class PodmanNode(CoreNode):
                         f"--mount type=volume,"
                         f"source={volume.src},target={volume.dst} "
                     )
-                # normalize hostname
-                hostname = self.name.replace("_", "-")
-                # create container and retrieve the created containers PID
-                cmd = self.docker_command or ""
+                # Always start with keepalive; run startup/default commands post-boot.
+                cmd = "tail -f /dev/null"
                 if self.run_image_default:
-                    # Keep the container alive while interfaces are adopted,
-                    # then launch ENTRYPOINT/CMD after startup.
-                        cmd = "tail -f /dev/null"
-                        "node(%s) run_image_default enabled, using keepalive anchor",
+                    logger.info(
+                        "node(%s) run_image_default enabled, will exec image default after boot",
                         self.name,
                     )
-                    cmd = "tail -f /dev/null"
-                elif not cmd:
-                    # Keep non-default mode containers alive for interface adoption.
-                    cmd = "tail -f /dev/null"
-                        elif startup_command:
-                            logger.info(
-                                "node(%s) will run startup command after boot: %s",
-                                self.name,
-                                startup_command,
-                            )
+                elif startup_command:
+                    logger.info(
+                        "node(%s) will exec startup command after boot: %s",
+                        self.name,
+                        startup_command,
+                    )
+                # Clean up stale container names from interrupted runs.
+                self.host_cmd(
                     f"{PODMAN} rm -f {self.name} >/dev/null 2>&1 || true",
                     shell=True,
                 )
-
                 run_cmd = (
                     f"{PODMAN} run -td --init --net=none --hostname {hostname} "
                     f"--name {self.name} --sysctl net.ipv6.conf.all.disable_ipv6=0 "
@@ -233,7 +226,6 @@ class PodmanNode(CoreNode):
                     f"--privileged {self.image} {cmd}"
                 )
                 self.host_cmd(run_cmd)
-
                 running = self.host_cmd(
                     f"{PODMAN} inspect -f '{{{{.State.Running}}}}' {self.name}"
                 ).strip().lower()
@@ -271,22 +263,22 @@ class PodmanNode(CoreNode):
                 self.check_image_compatibility()
             if self.run_image_default:
                 self.run_default_command()
-                elif startup_command and not self.compose:
-                    self.run_startup_command(startup_command)
+            elif startup_command and not self.compose:
+                self.run_startup_command(startup_command)
 
-        def run_startup_command(self, command: str) -> None:
-            """
-            Run configured startup command string within the running container.
-            """
-            try:
-                wrapped = shlex.quote(f"{command} > /tmp/core-startup.log 2>&1")
-                self.host_cmd(f"{PODMAN} exec -d {self.name} sh -c {wrapped}")
-                logger.info(
-                    "node(%s) startup command launched (see /tmp/core-startup.log)",
-                    self.name,
-                )
-            except Exception as e:
-                logger.error("node(%s) failed startup command launch: %s", self.name, e)
+    def run_startup_command(self, command: str) -> None:
+        """
+        Run configured startup command string within the running container.
+        """
+        try:
+            wrapped = shlex.quote(f"{command} > /tmp/core-startup.log 2>&1")
+            self.host_cmd(f"{PODMAN} exec -d {self.name} sh -c {wrapped}")
+            logger.info(
+                "node(%s) startup command launched (see /tmp/core-startup.log)",
+                self.name,
+            )
+        except Exception as e:
+            logger.error("node(%s) failed startup command launch: %s", self.name, e)
 
     def run_default_command(self) -> None:
         """
@@ -320,9 +312,13 @@ class PodmanNode(CoreNode):
             if full_cmd:
                 cmd_str = " ".join(shlex.quote(x) for x in full_cmd)
                 logger.info("node(%s) running default command: %s", self.name, cmd_str)
+                # run in background using a shell to ensure environment is set
+                # and redirect output to a log file for debugging
+                time.sleep(0.5)
+                # we use wait=False because we don't want to block session startup
                 try:
-                    self.host_cmd(f"{PODMAN} exec -d {self.name} {cmd_str}")
-                    logger.info("node(%s) default command launched", self.name)
+                    self.cmd(f"{cmd_str} > /tmp/core-startup.log 2>&1", wait=False, shell=True)
+                    logger.info("node(%s) default command launched (see /tmp/core-startup.log)", self.name)
                 except Exception as e:
                     logger.error("node(%s) failed to launch default command: %s", self.name, e)
             else:
