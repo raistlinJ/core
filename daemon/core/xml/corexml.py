@@ -181,6 +181,8 @@ class DeviceElement(NodeElement):
         add_attribute(self.element, "compose", compose)
         add_attribute(self.element, "compose_name", compose_name)
         if isinstance(self.node, (DockerNode, PodmanNode)):
+            logger.info("writing docker/podman node(%s) image_compatibility(%s) docker_command(%s) run_image_default(%s)", 
+                        self.node.name, self.node.image_compatibility, self.node.docker_command, self.node.run_image_default)
             add_attribute(self.element, "image_compatibility", self.node.image_compatibility)
             add_attribute(self.element, "docker_command", self.node.docker_command)
             add_attribute(self.element, "run_image_default", self.node.run_image_default)
@@ -731,8 +733,10 @@ class CoreXmlReader:
         compose = device_element.get("compose")
         compose_name = device_element.get("compose_name")
         image_compatibility = get_bool(device_element, "image_compatibility")
-        docker_command = device_element.get("docker_command")
+        docker_command = device_element.get("docker_command") or "tail -f /dev/null"
         run_image_default = get_bool(device_element, "run_image_default")
+        logger.info("reading docker/podman node id(%s) image(%s) image_compatibility(%s) docker_command(%s) run_image_default(%s)", 
+                    node_id, image, image_compatibility, docker_command, run_image_default)
         server = device_element.get("server")
         canvas = get_int(device_element, "canvas")
         node_type = NodeTypes.DEFAULT
@@ -850,21 +854,21 @@ class CoreXmlReader:
             if startup_element is not None:
                 service.startup = []
                 for cmd_element in startup_element.iterchildren():
-                    if cmd_element.text:
+                    if cmd_element.text and cmd_element.text not in service.startup:
                         service.startup.append(cmd_element.text)
             # Read shutdown commands
             shutdown_element = service_element.find("shutdown")
             if shutdown_element is not None:
                 service.shutdown = []
                 for cmd_element in shutdown_element.iterchildren():
-                    if cmd_element.text:
+                    if cmd_element.text and cmd_element.text not in service.shutdown:
                         service.shutdown.append(cmd_element.text)
             # Read validate commands
             validate_element = service_element.find("validate")
             if validate_element is not None:
                 service.validate = []
                 for cmd_element in validate_element.iterchildren():
-                    if cmd_element.text:
+                    if cmd_element.text and cmd_element.text not in service.validate:
                         service.validate.append(cmd_element.text)
             # Read directories
             directories_element = service_element.find("directories")
