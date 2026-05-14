@@ -313,10 +313,16 @@ def get_node_proto(
     image = None
     compose = None
     compose_name = None
+    docker_command = None
+    run_image_default = False
+    image_compatibility = False
     if isinstance(node, (DockerNode, PodmanNode)):
         image = node.image
         compose = node.compose
         compose_name = node.compose_name
+        docker_command = node.docker_command
+        run_image_default = node.run_image_default
+        image_compatibility = node.image_compatibility
     # check for wlan config
     wlan_config = session.mobility.get_configs(
         node.id, config_type=BasicRangeModel.name
@@ -391,6 +397,9 @@ def get_node_proto(
         image=image,
         compose=compose,
         compose_name=compose_name,
+        docker_command=docker_command,
+        run_image_default=run_image_default,
+        image_compatibility=image_compatibility,
         services=services,
         dir=node_dir,
         channel=channel,
