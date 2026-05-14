@@ -906,9 +906,19 @@ class CoreNode(CoreNodeBase):
             self.net_client.device_ns(iface.name, str(self.pid))
         except CoreCommandError as e:
             error = str(e)
-            # Container PID can change/disappear between creation and iface adoption.
-            if "No such process" not in error:
+            # Recover from transient races where either the target netns process
+            # is gone or the interface disappeared before adoption.
+            has_missing_pid = "No such process" in error
+            has_missing_iface = "Cannot find device" in error or "does not exist" in error
+            if not (has_missing_pid or has_missing_iface):
                 raise
+
+            if has_missing_iface:
+                logger.warning(
+                    "interface(%s) missing during adoption, recreating veth pair",
+                    iface.name,
+                )
+                iface.startup()
 
             runtime = None
             try:
