@@ -65,7 +65,9 @@ def get_int(element: etree.Element, name: str) -> int | None:
 
 def get_bool(element: etree.Element, name: str) -> bool:
     value = element.get(name)
-    return value == "True" or value == "1"
+    if value:
+        return value.lower() in ["true", "1"]
+    return False
 
 
 def add_attribute(element: etree.Element, name: str, value: Any) -> None:
