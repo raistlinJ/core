@@ -303,15 +303,21 @@ class NodeConfigDialog(Dialog):
             )
             entry.grid(row=docker_row, column=1, sticky=tk.EW)
             docker_row += 1
-            # image compatibility
+            # attempt to add missing packages
             checkbutton = ttk.Checkbutton(
-                docker_frame, text="Image Compatibility", variable=self.image_compatibility, state=state
+                docker_frame,
+                text="Attempt to Add Missing Packages",
+                variable=self.image_compatibility,
+                state=state,
             )
             checkbutton.grid(row=docker_row, column=1, sticky=tk.W)
             docker_row += 1
-            # run image default
+            # run dockerfile startup cmds
             checkbutton = ttk.Checkbutton(
-                docker_frame, text="Run Image Default", variable=self.run_image_default, state=state
+                docker_frame,
+                text="Run Dockerfile Startup CMDs",
+                variable=self.run_image_default,
+                state=state,
             )
             checkbutton.grid(row=docker_row, column=1, sticky=tk.W)
             docker_row += 1
@@ -361,6 +367,26 @@ class NodeConfigDialog(Dialog):
                 compose_section_frame, textvariable=self.compose_name, state=combo_state
             )
             self.compose_name_combobox.grid(row=compose_row, column=1, sticky=tk.EW)
+            compose_row += 1
+
+            # attempt to add missing packages
+            checkbutton = ttk.Checkbutton(
+                compose_section_frame,
+                text="Attempt to Add Missing Packages",
+                variable=self.image_compatibility,
+                state=state,
+            )
+            checkbutton.grid(row=compose_row, column=1, sticky=tk.W)
+            compose_row += 1
+
+            # run dockerfile startup cmds
+            checkbutton = ttk.Checkbutton(
+                compose_section_frame,
+                text="Run Dockerfile Startup CMDs",
+                variable=self.run_image_default,
+                state=state,
+            )
+            checkbutton.grid(row=compose_row, column=1, sticky=tk.W)
             compose_row += 1
 
             # define state trace for mode

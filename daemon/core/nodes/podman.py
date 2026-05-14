@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import shlex
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -95,6 +96,7 @@ class PodmanNode(CoreNode):
         self.docker_command: str = options.docker_command
         self.run_image_default: bool = options.run_image_default
         self.binds: list[tuple[str, str]] = options.binds
+        self.runtime_container: str = self.name
         self.volumes: dict[str, VolumeMount] = {}
         for src, dst, unique, delete in options.volumes:
             src_name = self._unique_name(src) if unique else src
@@ -119,7 +121,25 @@ class PodmanNode(CoreNode):
         """
         if shell:
             args = f"{BASH} -c {shlex.quote(args)}"
-        return f"{PODMAN} exec {self.name} {args}"
+        return f"{PODMAN} exec {self.runtime_container} {args}"
+
+    def _resolve_runtime_container(self) -> str:
+        """
+        Resolve actual runtime container object for compose services.
+
+        :return: container id/name to use for inspect/exec
+        :raises CoreError: when compose service has no running container
+        """
+        if not self.compose:
+            return self.name
+        container = self.host_cmd(
+            f"{PODMAN_COMPOSE} ps -q {self.compose_name}", cwd=self.directory
+        ).strip()
+        if not container:
+            raise CoreError(
+                f"compose service has no running container: {self.compose_name}"
+            )
+        return container
 
     def create_net_cmd(self, args: str, shell: bool = False) -> str:
         """
@@ -150,7 +170,7 @@ class PodmanNode(CoreNode):
         """
         try:
             running = self.host_cmd(
-                f"{PODMAN} inspect -f '{{{{.State.Running}}}}' {self.name}"
+                f"{PODMAN} inspect -f '{{{{.State.Running}}}}' {self.runtime_container}"
             )
             return json.loads(running)
         except CoreCommandError:
@@ -190,6 +210,7 @@ class PodmanNode(CoreNode):
                 self.host_cmd(
                     f"{PODMAN_COMPOSE} up -d {self.compose_name}", cwd=self.directory
                 )
+                self.runtime_container = self._resolve_runtime_container()
             else:
                 # setup commands for creating bind/volume mounts
                 binds = ""
@@ -252,9 +273,10 @@ class PodmanNode(CoreNode):
                     )
                     link_path = self.host_path(Path(volume.dst), True)
                     self.host_cmd(f"ln -s {volume.path} {link_path}")
+                self.runtime_container = self.name
             self.pid = int(
                 self.host_cmd(
-                    f"{PODMAN} inspect -f '{{{{.State.Pid}}}}' {self.name}"
+                    f"{PODMAN} inspect -f '{{{{.State.Pid}}}}' {self.runtime_container}"
                 ).strip()
             )
             logger.debug("node(%s) pid: %s", self.name, self.pid)
@@ -272,7 +294,7 @@ class PodmanNode(CoreNode):
         """
         try:
             wrapped = shlex.quote(f"{command} > /tmp/core-startup.log 2>&1")
-            self.host_cmd(f"{PODMAN} exec -d {self.name} sh -c {wrapped}")
+            self.host_cmd(f"{PODMAN} exec -d {self.runtime_container} sh -c {wrapped}")
             logger.info(
                 "node(%s) startup command launched (see /tmp/core-startup.log)",
                 self.name,
@@ -289,7 +311,9 @@ class PodmanNode(CoreNode):
             image = self.image
             if not image:
                 # for compose, try to find image from running container
-                image = self.host_cmd(f"{PODMAN} inspect -f '{{{{.Config.Image}}}}' {self.name}").strip()
+                image = self.host_cmd(
+                    f"{PODMAN} inspect -f '{{{{.Config.Image}}}}' {self.runtime_container}"
+                ).strip()
                 logger.info("node(%s) discovered image: %s", self.name, image)
 
             if not image:

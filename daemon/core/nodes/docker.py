@@ -98,6 +98,7 @@ class DockerNode(CoreNode):
         self.binds: list[tuple[str, str]] = options.binds
         self.volumes: dict[str, DockerVolume] = {}
         self.env: dict[str, str] = {}
+        self.runtime_container: str = self.name
         for src, dst, unique, delete in options.volumes:
             src_name = self._unique_name(src) if unique else src
             self.volumes[src] = DockerVolume(src_name, dst, unique, delete)
@@ -121,7 +122,25 @@ class DockerNode(CoreNode):
         """
         if shell:
             args = f"{BASH} -c {shlex.quote(args)}"
-        return f"{DOCKER} exec {self.name} {args}"
+        return f"{DOCKER} exec {self.runtime_container} {args}"
+
+    def _resolve_runtime_container(self) -> str:
+        """
+        Resolve actual runtime container object for compose services.
+
+        :return: container id/name to use for inspect/exec
+        :raises CoreError: when compose service has no running container
+        """
+        if not self.compose:
+            return self.name
+        container = self.host_cmd(
+            f"{DOCKER_COMPOSE} ps -q {self.compose_name}", cwd=self.directory
+        ).strip()
+        if not container:
+            raise CoreError(
+                f"compose service has no running container: {self.compose_name}"
+            )
+        return container
 
     def cmd(self, args: str, wait: bool = True, shell: bool = False) -> str:
         """
@@ -204,7 +223,7 @@ class DockerNode(CoreNode):
         """
         try:
             running = self.host_cmd(
-                f"{DOCKER} inspect -f '{{{{.State.Running}}}}' {self.name}"
+                f"{DOCKER} inspect -f '{{{{.State.Running}}}}' {self.runtime_container}"
             )
             return json.loads(running)
         except CoreCommandError:
@@ -244,6 +263,7 @@ class DockerNode(CoreNode):
                 self.host_cmd(
                     f"{DOCKER_COMPOSE} up -d {self.compose_name}", cwd=self.directory
                 )
+                self.runtime_container = self._resolve_runtime_container()
             else:
                 # setup commands for creating bind/volume mounts
                 binds = ""
@@ -311,10 +331,11 @@ class DockerNode(CoreNode):
                     )
                     link_path = self.host_path(Path(volume.dst), True)
                     self.host_cmd(f"ln -s {volume.path} {link_path}")
+                self.runtime_container = self.name
             # retrieve pid and process environment for use in nsenter commands
             self.pid = int(
                 self.host_cmd(
-                    f"{DOCKER} inspect -f '{{{{.State.Pid}}}}' {self.name}"
+                    f"{DOCKER} inspect -f '{{{{.State.Pid}}}}' {self.runtime_container}"
                 ).strip()
             )
             output = self.host_cmd(f"cat /proc/{self.pid}/environ")
@@ -338,7 +359,7 @@ class DockerNode(CoreNode):
         """
         try:
             wrapped = shlex.quote(f"{command} > /tmp/core-startup.log 2>&1")
-            self.host_cmd(f"{DOCKER} exec -d {self.name} sh -c {wrapped}")
+            self.host_cmd(f"{DOCKER} exec -d {self.runtime_container} sh -c {wrapped}")
             logger.info(
                 "node(%s) startup command launched (see /tmp/core-startup.log)",
                 self.name,
@@ -355,7 +376,9 @@ class DockerNode(CoreNode):
             image = self.image
             if not image:
                 # for compose, try to find image from running container
-                image = self.host_cmd(f"{DOCKER} inspect -f '{{{{.Config.Image}}}}' {self.name}").strip()
+                image = self.host_cmd(
+                    f"{DOCKER} inspect -f '{{{{.Config.Image}}}}' {self.runtime_container}"
+                ).strip()
                 logger.info("node(%s) discovered image: %s", self.name, image)
             
             if not image:
@@ -379,7 +402,7 @@ class DockerNode(CoreNode):
                 cmd_str = " ".join(shlex.quote(x) for x in full_cmd)
                 logger.info("node(%s) running default command: %s", self.name, cmd_str)
                 try:
-                    self.host_cmd(f"{DOCKER} exec -d {self.name} {cmd_str}")
+                    self.host_cmd(f"{DOCKER} exec -d {self.runtime_container} {cmd_str}")
                     logger.info("node(%s) default command launched", self.name)
                 except Exception as e:
                     logger.error("node(%s) failed to launch default command: %s", self.name, e)
