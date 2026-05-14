@@ -344,6 +344,11 @@ class DockerNode(CoreNode):
                     continue
                 key, value = line.split("=", 1)
                 self.env[key] = value
+            if self.compose:
+                try:
+                    self.node_net_client.delete_device("eth0")
+                except CoreCommandError:
+                    pass
             logger.debug("node(%s) pid: %s", self.name, self.pid)
             self.up = True
             if self.image_compatibility:

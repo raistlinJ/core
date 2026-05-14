@@ -279,6 +279,11 @@ class PodmanNode(CoreNode):
                     f"{PODMAN} inspect -f '{{{{.State.Pid}}}}' {self.runtime_container}"
                 ).strip()
             )
+            if self.compose:
+                try:
+                    self.node_net_client.delete_device("eth0")
+                except CoreCommandError:
+                    pass
             logger.debug("node(%s) pid: %s", self.name, self.pid)
             self.up = True
             if self.image_compatibility:
