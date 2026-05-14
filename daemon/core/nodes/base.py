@@ -909,29 +909,50 @@ class CoreNode(CoreNodeBase):
             # Container PID can change/disappear between creation and iface adoption.
             if "No such process" not in error:
                 raise
-            refreshed = False
+
+            runtime = None
             try:
                 from core.nodes.docker import DockerNode
                 from core.nodes.podman import PodmanNode
 
                 if isinstance(self, DockerNode):
-                    self.pid = int(
-                        self.host_cmd(
-                            f"docker inspect -f '{{{{.State.Pid}}}}' {self.name}"
-                        ).strip()
-                    )
-                    refreshed = True
+                    runtime = "docker"
                 elif isinstance(self, PodmanNode):
-                    self.pid = int(
-                        self.host_cmd(
-                            f"podman inspect -f '{{{{.State.Pid}}}}' {self.name}"
-                        ).strip()
-                    )
-                    refreshed = True
+                    runtime = "podman"
             except Exception:
                 logger.exception("failed to refresh container pid for node(%s)", self.name)
-            if not refreshed or self.pid <= 0:
+
+            if not runtime:
                 raise
+
+            running = ""
+            try:
+                running = (
+                    self.host_cmd(
+                        f"{runtime} inspect -f '{{{{.State.Running}}}}' {self.name}"
+                    )
+                    .strip()
+                    .lower()
+                )
+            except CoreCommandError:
+                logger.exception("failed to inspect running state for node(%s)", self.name)
+
+            if running != "true":
+                logger.warning(
+                    "node(%s) container not running during iface adoption, attempting restart",
+                    self.name,
+                )
+                self.host_cmd(f"{runtime} start {self.name}")
+
+            self.pid = int(
+                self.host_cmd(
+                    f"{runtime} inspect -f '{{{{.State.Pid}}}}' {self.name}"
+                ).strip()
+            )
+            if self.pid <= 0:
+                raise CoreError(
+                    f"node({self.name}) invalid container pid during iface adoption: {self.pid}"
+                )
             logger.warning(
                 "retrying namespace move for interface(%s) with refreshed pid(%s)",
                 iface.name,
