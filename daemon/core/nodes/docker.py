@@ -222,6 +222,7 @@ class DockerNode(CoreNode):
             # create node directory
             self.makenodedir()
             hostname = self.name.replace("_", "-")
+            startup_command = (self.docker_command or "").strip()
             if self.compose:
                 if not self.compose_name:
                     raise CoreError(
@@ -255,7 +256,7 @@ class DockerNode(CoreNode):
                         f"source={volume.src},target={volume.dst} "
                     )
                 # create container and retrieve the created containers PID
-                cmd = self.docker_command or ""
+                cmd = "tail -f /dev/null"
                 if self.run_image_default:
                     # Keep the container alive while interfaces are adopted,
                     # then launch ENTRYPOINT/CMD after startup.
@@ -263,10 +264,12 @@ class DockerNode(CoreNode):
                         "node(%s) run_image_default enabled, using keepalive anchor",
                         self.name,
                     )
-                    cmd = "tail -f /dev/null"
-                elif not cmd:
-                    # Keep non-default mode containers alive for interface adoption.
-                    cmd = "tail -f /dev/null"
+                elif startup_command:
+                    logger.info(
+                        "node(%s) will run startup command after boot: %s",
+                        self.name,
+                        startup_command,
+                    )
 
                 # Clean up stale container names from interrupted runs.
                 self.host_cmd(
@@ -326,6 +329,22 @@ class DockerNode(CoreNode):
                 self.check_image_compatibility()
             if self.run_image_default:
                 self.run_default_command()
+            elif startup_command and not self.compose:
+                self.run_startup_command(startup_command)
+
+    def run_startup_command(self, command: str) -> None:
+        """
+        Run configured startup command string within the running container.
+        """
+        try:
+            wrapped = shlex.quote(f"{command} > /tmp/core-startup.log 2>&1")
+            self.host_cmd(f"{DOCKER} exec -d {self.name} sh -c {wrapped}")
+            logger.info(
+                "node(%s) startup command launched (see /tmp/core-startup.log)",
+                self.name,
+            )
+        except Exception as e:
+            logger.error("node(%s) failed startup command launch: %s", self.name, e)
 
     def run_default_command(self) -> None:
         """
