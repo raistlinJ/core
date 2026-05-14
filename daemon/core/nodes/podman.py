@@ -206,7 +206,7 @@ class PodmanNode(CoreNode):
                 rendered = rendered.replace('"', r'\"')
                 rendered = "\\n".join(rendered.splitlines())
                 compose_path = self.directory / "podman-compose.yml"
-                self.host_cmd(f'printf "{rendered}" >> {compose_path}', shell=True)
+                self.host_cmd(f'printf "{rendered}" > {compose_path}', shell=True)
                 self.host_cmd(
                     f"{PODMAN_COMPOSE} up -d {self.compose_name}", cwd=self.directory
                 )
@@ -410,12 +410,26 @@ class PodmanNode(CoreNode):
         with self.lock:
             self.ifaces.clear()
             if self.compose:
-                self.host_cmd(f"{PODMAN_COMPOSE} down -t 0", cwd=self.directory)
+                try:
+                    self.host_cmd(f"{PODMAN_COMPOSE} down -t 0", cwd=self.directory)
+                except CoreCommandError:
+                    logger.exception(
+                        "node(%s) compose down failed, forcing container cleanup",
+                        self.name,
+                    )
+                containers = {self.name, self.runtime_container}
+                for container in containers:
+                    if container:
+                        self.host_cmd(
+                            f"{PODMAN} rm -f {container} >/dev/null 2>&1 || true",
+                            shell=True,
+                        )
             else:
                 self.host_cmd(f"{PODMAN} rm -f {self.name}")
                 for volume in self.volumes.values():
                     if volume.delete:
                         self.host_cmd(f"{PODMAN} volume rm {volume.src}")
+            self.runtime_container = self.name
             self.up = False
 
     def termcmdstring(self, sh: str = "/bin/sh") -> str:

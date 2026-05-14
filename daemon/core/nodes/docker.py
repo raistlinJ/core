@@ -259,7 +259,7 @@ class DockerNode(CoreNode):
                 rendered = rendered.replace('"', r"\"")
                 rendered = "\\n".join(rendered.splitlines())
                 compose_path = self.directory / "docker-compose.yml"
-                self.host_cmd(f'printf "{rendered}" >> {compose_path}', shell=True)
+                self.host_cmd(f'printf "{rendered}" > {compose_path}', shell=True)
                 self.host_cmd(
                     f"{DOCKER_COMPOSE} up -d {self.compose_name}", cwd=self.directory
                 )
@@ -470,10 +470,31 @@ class DockerNode(CoreNode):
             return
         with self.lock:
             self.ifaces.clear()
-            self.host_cmd(f"{DOCKER} rm -f {self.name}")
-            for volume in self.volumes.values():
-                if volume.delete:
-                    self.host_cmd(f"{DOCKER} volume rm {volume.src}")
+            if self.compose:
+                try:
+                    self.host_cmd(
+                        f"{DOCKER_COMPOSE} down --remove-orphans -t 0",
+                        cwd=self.directory,
+                    )
+                except CoreCommandError:
+                    logger.exception(
+                        "node(%s) compose down failed, forcing container cleanup",
+                        self.name,
+                    )
+                # Best-effort fallback for stale containers that survive compose down.
+                containers = {self.name, self.runtime_container}
+                for container in containers:
+                    if container:
+                        self.host_cmd(
+                            f"{DOCKER} rm -f {container} >/dev/null 2>&1 || true",
+                            shell=True,
+                        )
+            else:
+                self.host_cmd(f"{DOCKER} rm -f {self.name}")
+                for volume in self.volumes.values():
+                    if volume.delete:
+                        self.host_cmd(f"{DOCKER} volume rm {volume.src}")
+            self.runtime_container = self.name
             self.up = False
 
     def termcmdstring(self, sh: str = "/bin/sh") -> str:

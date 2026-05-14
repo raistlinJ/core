@@ -344,7 +344,7 @@ class NodeConfigDialog(Dialog):
             entry.grid(row=0, column=0, sticky=tk.EW, padx=PADX)
             button = ttk.Button(
                 compose_frame,
-                text="Compose File",
+                text="Select File",
                 command=self.click_compose,
                 state=state,
             )
@@ -620,25 +620,43 @@ class NodeConfigDialog(Dialog):
         )
         if file_path:
             self.compose_file.set(file_path)
-            self.update_compose_services()
+            self.update_compose_services(force_select=True)
 
     def click_compose_clear(self) -> None:
         self.compose_file.set("")
+        self.compose_name.set("")
         self.update_compose_services()
 
-    def update_compose_services(self) -> None:
+    def update_compose_services(self, force_select: bool = False) -> None:
         file_path = self.compose_file.get()
         if not file_path or not self.compose_name_combobox:
             if self.compose_name_combobox:
                 self.compose_name_combobox.config(values=[])
+                self.compose_name_combobox.set("")
             return
         try:
             with open(file_path, "r") as f:
                 data = yaml.safe_load(f)
                 services = list(data.get("services", {}).keys())
                 self.compose_name_combobox.config(values=services)
-                if services and not self.compose_name.get():
-                    self.compose_name.set(services[0])
+                selected = self.compose_name.get()
+                if services and (
+                    force_select
+                    or not selected
+                    or selected not in services
+                ):
+                    selected = services[0]
+                elif not services:
+                    selected = ""
+
+                self.compose_name.set(selected)
+                self.compose_name_combobox.set(selected)
+                if selected and selected in services:
+                    self.compose_name_combobox.current(services.index(selected))
+                elif not services:
+                    self.compose_name.set("")
         except Exception as e:
             logger.error("error reading compose file: %s", e)
             self.compose_name_combobox.config(values=[])
+            self.compose_name_combobox.set("")
+            self.compose_name.set("")
