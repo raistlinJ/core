@@ -79,7 +79,8 @@ def add_node_data(
         options.compose = node_proto.compose
         options.compose_name = node_proto.compose_name
         options.image_compatibility = node_proto.image_compatibility
-        options.docker_command = node_proto.docker_command
+        if node_proto.docker_command:
+            options.docker_command = node_proto.docker_command
         options.run_image_default = node_proto.run_image_default
     position = Position()
     position.set(node_proto.position.x, node_proto.position.y)

@@ -211,6 +211,9 @@ class PodmanNode(CoreNode):
                         self.name,
                     )
                     cmd = ""
+                elif not cmd:
+                    # Keep non-default mode containers alive for interface adoption.
+                    cmd = "tail -f /dev/null"
 
                 self.host_cmd(
                     f"{PODMAN} run -td --init --net=none --hostname {hostname} "
