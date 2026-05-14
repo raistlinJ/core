@@ -6,6 +6,7 @@ from typing import Callable
 import netaddr
 
 from core import utils
+from core.errors import CoreCommandError
 from core.executables import ETHTOOL, IP, OVS_VSCTL, SYSCTL, TC
 
 
@@ -181,7 +182,19 @@ class LinuxNetClient:
         :param peer: peer name
         :return: nothing
         """
-        self.run(f"{IP} link add name {name} type veth peer name {peer}")
+        try:
+            self.run(f"{IP} link add name {name} type veth peer name {peer}")
+        except CoreCommandError as e:
+            error = str(e)
+            if "File exists" not in error:
+                raise
+            # Recover from stale interfaces left behind after interrupted runs.
+            for device in (name, peer):
+                try:
+                    self.delete_device(device)
+                except CoreCommandError:
+                    pass
+            self.run(f"{IP} link add name {name} type veth peer name {peer}")
 
     def create_gretap(
         self, device: str, address: str, local: str, ttl: int, key: int
