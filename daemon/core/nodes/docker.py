@@ -257,8 +257,12 @@ class DockerNode(CoreNode):
                 # create container and retrieve the created containers PID
                 cmd = self.docker_command or ""
                 if self.run_image_default:
-                    logger.info("node(%s) run_image_default enabled, forcing anchor command", self.name)
-                    cmd = "tail -f /dev/null"
+                    # Let the image run its native ENTRYPOINT/CMD directly.
+                    logger.info(
+                        "node(%s) run_image_default enabled, using image default command",
+                        self.name,
+                    )
+                    cmd = ""
                 
                 self.host_cmd(
                     f"{DOCKER} run -td --init --net=none --hostname {hostname} "
@@ -290,8 +294,6 @@ class DockerNode(CoreNode):
             self.up = True
             if self.image_compatibility:
                 self.check_image_compatibility()
-            if self.run_image_default:
-                self.run_default_command()
 
     def run_default_command(self) -> None:
         """

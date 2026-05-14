@@ -855,23 +855,15 @@ def configure_node(
                 service.set_config(dict(service_config.config))
             for name, template in service_config.templates.items():
                 service.set_template(name, template)
-            # Apply custom startup, shutdown, and validate commands
-            if service_config.startup:
-                service.startup = list(service_config.startup)
-            if service_config.shutdown:
-                service.shutdown = list(service_config.shutdown)
-            if service_config.validate:
-                service.validate = list(service_config.validate)
-            if service_config.files:
-                service.files = list(service_config.files)
-            if service_config.directories:
-                service.directories = list(service_config.directories)
-            if service_config.dependencies:
-                service.dependencies = list(service_config.dependencies)
-            if service_config.executables:
-                service.executables = list(service_config.executables)
-            if service_config.description:
-                service.description = service_config.description
+            # Apply service override lists even when empty so users can clear them.
+            service.startup = list(service_config.startup)
+            service.shutdown = list(service_config.shutdown)
+            service.validate = list(service_config.validate)
+            service.files = list(service_config.files)
+            service.directories = list(service_config.directories)
+            service.dependencies = list(service_config.dependencies)
+            service.executables = list(service_config.executables)
+            service.description = service_config.description
 
 
 def get_optional(message: Message, name: str) -> Any | None:

@@ -619,7 +619,7 @@ class Node:
     compose: str = None
     compose_name: str = None
     image_compatibility: bool = False
-    docker_command: str = "tail -f /dev/null"
+    docker_command: str = None
     run_image_default: bool = False
     server: str = None
     geo: Geo = None

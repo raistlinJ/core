@@ -181,8 +181,6 @@ class DeviceElement(NodeElement):
         add_attribute(self.element, "compose", compose)
         add_attribute(self.element, "compose_name", compose_name)
         if isinstance(self.node, (DockerNode, PodmanNode)):
-            logger.info("writing docker/podman node(%s) image_compatibility(%s) docker_command(%s) run_image_default(%s)", 
-                        self.node.name, self.node.image_compatibility, self.node.docker_command, self.node.run_image_default)
             add_attribute(self.element, "image_compatibility", self.node.image_compatibility)
             add_attribute(self.element, "docker_command", self.node.docker_command)
             add_attribute(self.element, "run_image_default", self.node.run_image_default)
@@ -386,42 +384,56 @@ class CoreXmlWriter:
                         etree.SubElement(
                             startup_element, "command"
                         ).text = cmd
+                elif service.startup != service.__class__.startup:
+                    etree.SubElement(service_element, "startup")
                 if service.shutdown:
                     shutdown_element = etree.SubElement(service_element, "shutdown")
                     for cmd in service.shutdown:
                         etree.SubElement(
                             shutdown_element, "command"
                         ).text = cmd
+                elif service.shutdown != service.__class__.shutdown:
+                    etree.SubElement(service_element, "shutdown")
                 if service.validate:
                     validate_element = etree.SubElement(service_element, "validate")
                     for cmd in service.validate:
                         etree.SubElement(
                             validate_element, "command"
                         ).text = cmd
+                elif service.validate != service.__class__.validate:
+                    etree.SubElement(service_element, "validate")
                 if service.directories:
                     directories_element = etree.SubElement(service_element, "directories")
                     for directory in service.directories:
                         etree.SubElement(
                             directories_element, "directory"
                         ).text = directory
+                elif service.directories != service.__class__.directories:
+                    etree.SubElement(service_element, "directories")
                 if service.files:
                     files_element = etree.SubElement(service_element, "files")
                     for file in service.files:
                         etree.SubElement(
                             files_element, "file"
                         ).text = file
+                elif service.files != service.__class__.files:
+                    etree.SubElement(service_element, "files")
                 if service.dependencies:
                     dependencies_element = etree.SubElement(service_element, "dependencies")
                     for dependency in service.dependencies:
                         etree.SubElement(
                             dependencies_element, "dependency"
                         ).text = dependency
+                elif service.dependencies != service.__class__.dependencies:
+                    etree.SubElement(service_element, "dependencies")
                 if service.executables:
                     executables_element = etree.SubElement(service_element, "executables")
                     for executable in service.executables:
                         etree.SubElement(
                             executables_element, "executable"
                         ).text = executable
+                elif service.executables != service.__class__.executables:
+                    etree.SubElement(service_element, "executables")
                 if (
                     service.custom_config
                     or service.custom_templates
@@ -432,6 +444,13 @@ class CoreXmlWriter:
                     or service.files
                     or service.dependencies
                     or service.executables
+                    or service.startup != service.__class__.startup
+                    or service.shutdown != service.__class__.shutdown
+                    or service.validate != service.__class__.validate
+                    or service.directories != service.__class__.directories
+                    or service.files != service.__class__.files
+                    or service.dependencies != service.__class__.dependencies
+                    or service.executables != service.__class__.executables
                 ):
                     service_configurations.append(service_element)
         if service_configurations.getchildren():
@@ -733,10 +752,8 @@ class CoreXmlReader:
         compose = device_element.get("compose")
         compose_name = device_element.get("compose_name")
         image_compatibility = get_bool(device_element, "image_compatibility")
-        docker_command = device_element.get("docker_command") or "tail -f /dev/null"
+        docker_command = device_element.get("docker_command")
         run_image_default = get_bool(device_element, "run_image_default")
-        logger.info("reading docker/podman node id(%s) image(%s) image_compatibility(%s) docker_command(%s) run_image_default(%s)", 
-                    node_id, image, image_compatibility, docker_command, run_image_default)
         server = device_element.get("server")
         canvas = get_int(device_element, "canvas")
         node_type = NodeTypes.DEFAULT
@@ -854,21 +871,21 @@ class CoreXmlReader:
             if startup_element is not None:
                 service.startup = []
                 for cmd_element in startup_element.iterchildren():
-                    if cmd_element.text and cmd_element.text not in service.startup:
+                    if cmd_element.text:
                         service.startup.append(cmd_element.text)
             # Read shutdown commands
             shutdown_element = service_element.find("shutdown")
             if shutdown_element is not None:
                 service.shutdown = []
                 for cmd_element in shutdown_element.iterchildren():
-                    if cmd_element.text and cmd_element.text not in service.shutdown:
+                    if cmd_element.text:
                         service.shutdown.append(cmd_element.text)
             # Read validate commands
             validate_element = service_element.find("validate")
             if validate_element is not None:
                 service.validate = []
                 for cmd_element in validate_element.iterchildren():
-                    if cmd_element.text and cmd_element.text not in service.validate:
+                    if cmd_element.text:
                         service.validate.append(cmd_element.text)
             # Read directories
             directories_element = service_element.find("directories")
