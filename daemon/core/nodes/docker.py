@@ -438,7 +438,7 @@ class DockerNode(CoreNode):
         package_managers = [
             (
                 "apt-get",
-                "apt-get update && apt-get install -y",
+                "(apt-get update || true) && apt-get install -y",
                 {
                     "bash": "bash",
                     "ip": "iproute2",

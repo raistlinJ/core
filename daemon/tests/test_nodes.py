@@ -239,7 +239,7 @@ class TestNodes:
 
         # then
         assert commands[-1] == (
-            "/bin/sh -c 'apt-get update && apt-get install -y "
+            "/bin/sh -c '(apt-get update || true) && apt-get install -y "
             "bash iproute2 iputils-ping ethtool'"
         )
 
@@ -249,7 +249,7 @@ class TestNodes:
         node.name = "n1"
         commands = []
         install_cmd = (
-            "/bin/sh -c 'apt-get update && apt-get install -y "
+            "/bin/sh -c '(apt-get update || true) && apt-get install -y "
             "bash iproute2 iputils-ping ethtool'"
         )
 
