@@ -751,7 +751,7 @@ class CoreXmlReader:
         image = device_element.get("image")
         compose = device_element.get("compose")
         compose_name = device_element.get("compose_name")
-        image_compatibility = get_bool(device_element, "image_compatibility")
+        image_compatibility = device_element.get("image_compatibility")
         docker_command = device_element.get("docker_command")
         run_image_default = get_bool(device_element, "run_image_default")
         server = device_element.get("server")
@@ -779,7 +779,10 @@ class CoreXmlReader:
             options.image = image
             options.compose = compose
             options.compose_name = compose_name
-            options.image_compatibility = image_compatibility
+            if image_compatibility is not None:
+                options.image_compatibility = get_bool(
+                    device_element, "image_compatibility"
+                )
             options.run_image_default = run_image_default
             if docker_command:
                 options.docker_command = docker_command

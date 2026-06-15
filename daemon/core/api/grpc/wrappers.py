@@ -618,7 +618,7 @@ class Node:
     image: str = None
     compose: str = None
     compose_name: str = None
-    image_compatibility: bool = False
+    image_compatibility: bool = True
     docker_command: str = None
     run_image_default: bool = False
     server: str = None

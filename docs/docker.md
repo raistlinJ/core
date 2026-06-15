@@ -48,15 +48,18 @@ newgrp docker
 
 ## Image Requirements
 
-Images used by Docker nodes in CORE need to have networking tools installed for
-CORE to automate setup and configuration of the network within the container.
+Docker nodes need basic networking tools such as `ip`, `ping`, and `ethtool`.
+CORE attempts to install these tools when a container starts, using common
+package managers such as `apt-get`, `apk`, or `yum`. For repeatable scenarios,
+or for images without one of those package managers, build the tools into the
+image instead.
 
 Example Dockerfile:
 
 ```
 FROM ubuntu:latest
 RUN apt-get update
-RUN apt-get install -y iproute2 ethtool
+RUN apt-get install -y iproute2 iputils-ping ethtool
 ```
 
 Build image:

@@ -45,7 +45,7 @@ class DockerOptions(CoreNodeOptions):
     """
     Service name to start, within the provided compose file.
     """
-    image_compatibility: bool = False
+    image_compatibility: bool = True
     docker_command: str = "tail -f /dev/null"
     run_image_default: bool = False
 
@@ -420,7 +420,7 @@ class DockerNode(CoreNode):
         """
         Checks for required packages and attempts to install them if missing.
         """
-        required_tools = ["bash", "ip"]
+        required_tools = ["bash", "ip", "ping", "ethtool"]
         missing_tools = []
         for tool in required_tools:
             try:
@@ -432,32 +432,60 @@ class DockerNode(CoreNode):
             return
 
         logger.info("node(%s) missing tools: %s", self.name, missing_tools)
-        # try to install missing tools using common package managers
-        # 1. apt-get (Debian/Ubuntu)
-        # 2. apk (Alpine)
-        # 3. yum (CentOS/Fedora)
-        install_cmds = [
-            ("apt-get update && apt-get install -y", ["bash", "iproute2"]),
-            ("apk add", ["bash", "iproute2"]),
-            ("yum install -y", ["bash", "iproute"]),
+        package_managers = [
+            (
+                "apt-get",
+                "apt-get update && apt-get install -y",
+                {
+                    "bash": "bash",
+                    "ip": "iproute2",
+                    "ping": "iputils-ping",
+                    "ethtool": "ethtool",
+                },
+            ),
+            (
+                "apk",
+                "apk add",
+                {
+                    "bash": "bash",
+                    "ip": "iproute2",
+                    "ping": "iputils",
+                    "ethtool": "ethtool",
+                },
+            ),
+            (
+                "yum",
+                "yum install -y",
+                {
+                    "bash": "bash",
+                    "ip": "iproute",
+                    "ping": "iputils",
+                    "ethtool": "ethtool",
+                },
+            ),
         ]
 
-        for pkg_manager, packages in install_cmds:
+        for manager, install_cmd, packages in package_managers:
             try:
-                self.cmd(f"which {pkg_manager.split()[0]}")
-                # check which of the missing tools map to these packages
-                to_install = []
-                if "bash" in missing_tools:
-                    to_install.append(packages[0])
-                if "ip" in missing_tools:
-                    to_install.append(packages[1])
-                
-                if to_install:
-                    logger.info("node(%s) attempting to install %s using %s", self.name, to_install, pkg_manager)
-                    self.cmd(f"{pkg_manager} {' '.join(to_install)}")
-                    return # success
+                self.cmd(f"which {manager}")
+                to_install = [packages[tool] for tool in missing_tools]
+                logger.info(
+                    "node(%s) attempting to install %s using %s",
+                    self.name,
+                    to_install,
+                    manager,
+                )
+                self.cmd(f"{install_cmd} {' '.join(to_install)}")
+                return
             except CoreCommandError:
                 continue
+
+        logger.warning(
+            "node(%s) could not install missing tools, no supported package "
+            "manager found: %s",
+            self.name,
+            missing_tools,
+        )
 
     def shutdown(self) -> None:
         """

@@ -1,10 +1,14 @@
+from unittest import mock
+
 import pytest
 
 from core.emulator.data import InterfaceData
 from core.emulator.session import Session
-from core.errors import CoreError
+from core.errors import CoreCommandError, CoreError
 from core.nodes.base import CoreNode
+from core.nodes.docker import DockerNode, DockerOptions
 from core.nodes.network import HubNode, SwitchNode, WlanNode
+from core.nodes.podman import PodmanOptions
 
 MODELS = ["router", "host", "PC", "mdr"]
 NET_TYPES = [SwitchNode, HubNode, WlanNode]
@@ -201,3 +205,40 @@ class TestNodes:
         # when
         with pytest.raises(CoreError):
             session.create_control_net(0, ip_prefix, None, None)
+
+    def test_container_options_enable_image_compatibility(self):
+        # given
+        docker_options = DockerOptions()
+        podman_options = PodmanOptions()
+
+        # then
+        assert docker_options.image_compatibility
+        assert podman_options.image_compatibility
+
+    def test_docker_image_compatibility_installs_network_tools(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.name = "n1"
+        commands = []
+
+        def cmd(command: str):
+            commands.append(command)
+            if command in [
+                "which bash",
+                "which ip",
+                "which ping",
+                "which ethtool",
+            ]:
+                raise CoreCommandError(1, command)
+            return ""
+
+        node.cmd = mock.MagicMock(side_effect=cmd)
+
+        # when
+        node.check_image_compatibility()
+
+        # then
+        assert commands[-1] == (
+            "apt-get update && apt-get install -y "
+            "bash iproute2 iputils-ping ethtool"
+        )
