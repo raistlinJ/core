@@ -4,8 +4,13 @@ from unittest import mock
 import pytest
 
 from core.config import ConfigBool, ConfigString
+from core.emulator.data import InterfaceData
+from core.emulator.session import Session
 from core.errors import CoreCommandError, CoreError
+from core.nodes.base import CoreNode
+from core.nodes.network import SwitchNode
 from core.services.base import CoreService, ServiceBootError, ServiceMode
+from core.services.defaults.utilservices.services import DefaultRouteService
 
 TEMPLATE_TEXT = "echo hello"
 
@@ -294,3 +299,32 @@ class TestServices:
         service.run_startup.assert_called_once()
         service.run_validation.assert_called_once()
         service.wait_validation.assert_not_called()
+
+    def test_default_route_ptp_uses_peer(self, session: Session):
+        # given
+        node1 = session.add_node(CoreNode)
+        node2 = session.add_node(CoreNode)
+        iface1_data = InterfaceData(id=0, ip4="10.83.0.1", ip4_mask=16)
+        iface2_data = InterfaceData(id=0, ip4="10.83.0.2", ip4_mask=16)
+        session.add_link(node1.id, node2.id, iface1_data, iface2_data)
+        service = node1.services[DefaultRouteService.name]
+
+        # when
+        data = service.data()
+
+        # then
+        assert data == {"routes": ["10.83.0.2"]}
+
+    def test_default_route_non_ptp_uses_first_host(self, session: Session):
+        # given
+        node = session.add_node(CoreNode)
+        switch = session.add_node(SwitchNode)
+        iface_data = InterfaceData(id=0, ip4="10.83.0.2", ip4_mask=16)
+        session.add_link(node.id, switch.id, iface_data)
+        service = node.services[DefaultRouteService.name]
+
+        # when
+        data = service.data()
+
+        # then
+        assert data == {"routes": ["10.83.0.1"]}

@@ -3,6 +3,7 @@ from typing import Any
 import netaddr
 
 from core import utils
+from core.nodes.network import PtpNet
 from core.services.base import CoreService
 
 GROUP_NAME = "Utility"
@@ -16,6 +17,24 @@ class DefaultRouteService(CoreService):
     executables: list[str] = ["ip"]
     startup: list[str] = ["bash defaultroute.sh"]
 
+    @staticmethod
+    def get_ptp_peer_route(iface_ip: netaddr.IPNetwork, iface: Any) -> str | None:
+        if not isinstance(iface.net, PtpNet):
+            return None
+        ifaces = iface.net.get_ifaces()
+        if len(ifaces) != 2:
+            return None
+        for peer_iface in ifaces:
+            if peer_iface is iface:
+                continue
+            for peer_ip in peer_iface.ips():
+                if (
+                    peer_ip.version == iface_ip.version
+                    and peer_ip.ip in iface_ip.cidr
+                ):
+                    return str(peer_ip.ip)
+        return None
+
     def data(self) -> dict[str, Any]:
         # only add default routes for linked routing nodes
         routes = []
@@ -25,7 +44,9 @@ class DefaultRouteService(CoreService):
             for ip in iface.ips():
                 net = ip.cidr
                 if net.size > 1:
-                    router = net[1]
+                    router = self.get_ptp_peer_route(ip, iface)
+                    if router is None:
+                        router = str(net[1])
                     routes.append(str(router))
         return dict(routes=routes)
 
