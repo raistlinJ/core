@@ -215,6 +215,9 @@ class DockerNode(CoreNode):
         """
         return f"{self.session.id}.{self.id}.{name}"
 
+    def should_check_image_compatibility(self) -> bool:
+        return self.image_compatibility and not self.compose
+
     def alive(self) -> bool:
         """
         Check if the node is alive.
@@ -351,7 +354,7 @@ class DockerNode(CoreNode):
                     pass
             logger.debug("node(%s) pid: %s", self.name, self.pid)
             self.up = True
-            if self.image_compatibility:
+            if self.should_check_image_compatibility():
                 self.check_image_compatibility()
             if self.run_image_default:
                 self.run_default_command()

@@ -1,12 +1,15 @@
+import logging
 from typing import Any
 
 import netaddr
 
 from core import utils
+from core.errors import CoreCommandError
 from core.nodes.network import PtpNet
-from core.services.base import CoreService
+from core.services.base import CoreService, ServiceBootError
 
 GROUP_NAME = "Utility"
+logger = logging.getLogger(__name__)
 
 
 class DefaultRouteService(CoreService):
@@ -16,6 +19,13 @@ class DefaultRouteService(CoreService):
     files: list[str] = ["defaultroute.sh"]
     executables: list[str] = ["ip"]
     startup: list[str] = ["bash defaultroute.sh"]
+
+    def start(self) -> None:
+        if self.startup != self.__class__.startup or self.custom_templates:
+            super().start()
+        else:
+            logger.info("node(%s) service(%s) starting...", self.node.name, self.name)
+            self.run_startup(True)
 
     @staticmethod
     def get_ptp_peer_route(iface_ip: netaddr.IPNetwork, iface: Any) -> str | None:
@@ -49,6 +59,19 @@ class DefaultRouteService(CoreService):
                         router = str(net[1])
                     routes.append(str(router))
         return dict(routes=routes)
+
+    def run_startup(self, wait: bool) -> None:
+        if self.startup != self.__class__.startup or self.custom_templates:
+            super().run_startup(wait)
+            return
+
+        for route in self.data()["routes"]:
+            try:
+                self.node.net_cmd(f"ip route replace default via {route}")
+            except CoreCommandError as e:
+                raise ServiceBootError(
+                    f"node({self.node.name}) service({self.name}) failed startup: {e}"
+                )
 
 
 class DefaultMulticastRouteService(CoreService):

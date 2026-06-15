@@ -273,3 +273,15 @@ class TestNodes:
         # then
         assert commands[-1] == install_cmd
         assert "/bin/sh -c 'command -v apk'" not in commands
+
+    def test_docker_compose_skips_image_compatibility(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.image_compatibility = True
+        node.compose = "/tmp/docker-compose.yml"
+
+        # when
+        result = node.should_check_image_compatibility()
+
+        # then
+        assert not result

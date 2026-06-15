@@ -48,11 +48,18 @@ newgrp docker
 
 ## Image Requirements
 
-Docker nodes need basic networking tools such as `ip`, `ping`, and `ethtool`.
-CORE attempts to install these tools when a container starts, using common
-package managers such as `apt-get`, `apk`, or `yum`. For repeatable scenarios,
-or for images without one of those package managers, build the tools into the
-image instead.
+CORE configures Docker node interfaces and stock default routes from the host
+network namespace, so compose-backed application images do not need `ip`,
+`ping`, or `ethtool` for CORE to attach them to a scenario. CORE also avoids
+installing packages into compose-backed application containers, since those
+images are often purpose-built and may have pinned, archived, or intentionally
+limited package repositories.
+
+Non-compose Docker nodes can attempt to install basic networking tools such as
+`ip`, `ping`, and `ethtool` when a container starts, using common package
+managers such as `apt-get`, `apk`, or `yum`. For repeatable scenarios, or when
+you want those tools available inside the container terminal, build them into
+the image instead.
 
 Example Dockerfile:
 

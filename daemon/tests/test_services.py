@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
+import netaddr
 
 from core.config import ConfigBool, ConfigString
 from core.emulator.data import InterfaceData
@@ -328,3 +329,22 @@ class TestServices:
 
         # then
         assert data == {"routes": ["10.83.0.1"]}
+
+    def test_default_route_uses_net_cmd(self):
+        # given
+        node = mock.MagicMock()
+        node.name = "n1"
+        iface = mock.MagicMock()
+        iface.net = None
+        iface.ips.return_value = [netaddr.IPNetwork("10.83.0.2/16")]
+        node.get_ifaces.return_value = [iface]
+        service = DefaultRouteService(node)
+
+        # when
+        service.start()
+
+        # then
+        node.net_cmd.assert_called_once_with(
+            "ip route replace default via 10.83.0.1"
+        )
+        node.cmd.assert_not_called()
