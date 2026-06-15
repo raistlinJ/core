@@ -471,19 +471,28 @@ class DockerNode(CoreNode):
         for manager, install_cmd, packages in package_managers:
             try:
                 self.cmd(self.sh_cmd(f"command -v {manager}"))
-                to_install = list(
-                    dict.fromkeys(packages[tool] for tool in missing_tools)
-                )
-                logger.info(
-                    "node(%s) attempting to install %s using %s",
-                    self.name,
-                    to_install,
-                    manager,
-                )
-                self.cmd(self.sh_cmd(f"{install_cmd} {' '.join(to_install)}"))
-                return
             except CoreCommandError:
                 continue
+
+            to_install = list(
+                dict.fromkeys(packages[tool] for tool in missing_tools)
+            )
+            logger.info(
+                "node(%s) attempting to install %s using %s",
+                self.name,
+                to_install,
+                manager,
+            )
+            try:
+                self.cmd(self.sh_cmd(f"{install_cmd} {' '.join(to_install)}"))
+            except CoreCommandError as e:
+                logger.warning(
+                    "node(%s) failed to install missing tools using %s: %s",
+                    self.name,
+                    manager,
+                    e,
+                )
+            return
 
         logger.warning(
             "node(%s) could not install missing tools, no supported package "

@@ -242,3 +242,34 @@ class TestNodes:
             "/bin/sh -c 'apt-get update && apt-get install -y "
             "bash iproute2 iputils-ping ethtool'"
         )
+
+    def test_docker_image_compatibility_stops_after_install_failure(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.name = "n1"
+        commands = []
+        install_cmd = (
+            "/bin/sh -c 'apt-get update && apt-get install -y "
+            "bash iproute2 iputils-ping ethtool'"
+        )
+
+        def cmd(command: str):
+            commands.append(command)
+            if command in [
+                "/bin/sh -c 'command -v bash'",
+                "/bin/sh -c 'command -v ip'",
+                "/bin/sh -c 'command -v ping'",
+                "/bin/sh -c 'command -v ethtool'",
+                install_cmd,
+            ]:
+                raise CoreCommandError(1, command)
+            return ""
+
+        node.cmd = mock.MagicMock(side_effect=cmd)
+
+        # when
+        node.check_image_compatibility()
+
+        # then
+        assert commands[-1] == install_cmd
+        assert "/bin/sh -c 'command -v apk'" not in commands
