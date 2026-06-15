@@ -416,6 +416,9 @@ class DockerNode(CoreNode):
         except Exception as e:
             logger.error("node(%s) failed to run default command: %s", self.name, e)
 
+    def sh_cmd(self, command: str) -> str:
+        return f"/bin/sh -c {shlex.quote(command)}"
+
     def check_image_compatibility(self) -> None:
         """
         Checks for required packages and attempts to install them if missing.
@@ -424,7 +427,7 @@ class DockerNode(CoreNode):
         missing_tools = []
         for tool in required_tools:
             try:
-                self.cmd(f"which {tool}")
+                self.cmd(self.sh_cmd(f"command -v {tool}"))
             except CoreCommandError:
                 missing_tools.append(tool)
 
@@ -467,15 +470,17 @@ class DockerNode(CoreNode):
 
         for manager, install_cmd, packages in package_managers:
             try:
-                self.cmd(f"which {manager}")
-                to_install = [packages[tool] for tool in missing_tools]
+                self.cmd(self.sh_cmd(f"command -v {manager}"))
+                to_install = list(
+                    dict.fromkeys(packages[tool] for tool in missing_tools)
+                )
                 logger.info(
                     "node(%s) attempting to install %s using %s",
                     self.name,
                     to_install,
                     manager,
                 )
-                self.cmd(f"{install_cmd} {' '.join(to_install)}")
+                self.cmd(self.sh_cmd(f"{install_cmd} {' '.join(to_install)}"))
                 return
             except CoreCommandError:
                 continue

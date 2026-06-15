@@ -224,10 +224,10 @@ class TestNodes:
         def cmd(command: str):
             commands.append(command)
             if command in [
-                "which bash",
-                "which ip",
-                "which ping",
-                "which ethtool",
+                "/bin/sh -c 'command -v bash'",
+                "/bin/sh -c 'command -v ip'",
+                "/bin/sh -c 'command -v ping'",
+                "/bin/sh -c 'command -v ethtool'",
             ]:
                 raise CoreCommandError(1, command)
             return ""
@@ -239,6 +239,6 @@ class TestNodes:
 
         # then
         assert commands[-1] == (
-            "apt-get update && apt-get install -y "
-            "bash iproute2 iputils-ping ethtool"
+            "/bin/sh -c 'apt-get update && apt-get install -y "
+            "bash iproute2 iputils-ping ethtool'"
         )
