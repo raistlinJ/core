@@ -108,6 +108,8 @@ TYPE_MAP: dict[tuple[NodeType, str], ImageEnum] = {
 def from_node(node: Node, *, scale: float) -> PhotoImage | None:
     image = None
     image_enum = TYPE_MAP.get((node.type, node.model))
+    if image_enum is None:
+        image_enum = TYPE_MAP.get((node.type, None))
     if image_enum:
         image = from_enum(image_enum, width=NODE_SIZE, scale=scale)
     return image
