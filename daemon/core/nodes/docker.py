@@ -258,6 +258,7 @@ class DockerNode(CoreNode):
         lines = [
             f"FROM {image}",
             "USER root",
+            'SHELL ["/bin/sh", "-c"]',
             "RUN set -eux; \\",
             "    if command -v apt-get >/dev/null 2>&1; then \\",
             "        (apt-get update || true) && apt-get install -y --no-install-recommends bash iproute2 iputils-ping ethtool && rm -rf /var/lib/apt/lists/*; \\",

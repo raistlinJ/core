@@ -245,6 +245,19 @@ class TestNodes:
             cwd=Path("/tmp/n1.conf"),
         )
 
+    def test_docker_image_compatibility_forces_sh(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.name = "n1"
+        node._image_user = mock.MagicMock(return_value=None)
+
+        # when
+        dockerfile = node._compatibility_dockerfile("example:latest")
+
+        # then
+        assert 'SHELL ["/bin/sh", "-c"]' in dockerfile
+        assert "RUN set -eux" in dockerfile
+
     def test_docker_compose_image_compatibility_override(self):
         # given
         node = DockerNode.__new__(DockerNode)
