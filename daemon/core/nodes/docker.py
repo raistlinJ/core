@@ -314,15 +314,17 @@ class DockerNode(CoreNode):
         self._write_host_file(dockerfile_path, self._compatibility_dockerfile(image))
         self._ensure_build_network()
         compatible_image = self._compatible_image_name()
+        self.host_cmd(
+            f"{DOCKER} build --network {shlex.quote(COMPAT_BUILD_NETWORK)} "
+            f"-t {shlex.quote(compatible_image)} -f Dockerfile.corecompat .",
+            cwd=self.directory,
+            env={"DOCKER_BUILDKIT": "0"},
+        )
         override = {
             "services": {
                 self.compose_name: {
                     "image": compatible_image,
-                    "build": {
-                        "context": ".",
-                        "dockerfile": dockerfile_path.name,
-                        "network": COMPAT_BUILD_NETWORK,
-                    },
+                    "pull_policy": "never",
                 }
             }
         }

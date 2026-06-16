@@ -271,6 +271,7 @@ class TestNodes:
         node._write_host_file = mock.MagicMock()
         node._ensure_build_network = mock.MagicMock()
         node._compatibility_dockerfile = mock.MagicMock(return_value="FROM app\n")
+        node.host_cmd = mock.MagicMock()
         rendered = "services:\n  web:\n    image: vulhub/spring-boot-jetty:3.2.4\n"
 
         # when
@@ -280,10 +281,15 @@ class TestNodes:
         assert override_path == Path("/tmp/n1.conf/docker-compose.corecompat.yml")
         assert node._write_host_file.call_count == 2
         node._ensure_build_network.assert_called_once_with()
+        node.host_cmd.assert_called_once_with(
+            "docker build --network core-compat-build "
+            "-t core-compat-1000-1-n1:latest -f Dockerfile.corecompat .",
+            cwd=Path("/tmp/n1.conf"),
+            env={"DOCKER_BUILDKIT": "0"},
+        )
         _, override = node._write_host_file.call_args_list[1].args
         assert "core-compat-1000-1-n1:latest" in override
-        assert "Dockerfile.corecompat" in override
-        assert "network: core-compat-build" in override
+        assert "pull_policy: never" in override
 
     def test_docker_compose_checks_image_compatibility(self):
         # given
