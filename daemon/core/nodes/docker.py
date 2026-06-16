@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 DOCKER: str = "docker"
 DOCKER_COMPOSE: str = os.environ.get("DOCKER_COMPOSE", "docker compose")
+COMPAT_BUILD_NETWORK: str = "host"
 
 
 @dataclass
@@ -281,7 +282,8 @@ class DockerNode(CoreNode):
             dockerfile_path, self._compatibility_dockerfile(self.image)
         )
         self.host_cmd(
-            f"{DOCKER} build -t {shlex.quote(image)} -f Dockerfile.corecompat .",
+            f"{DOCKER} build --network {shlex.quote(COMPAT_BUILD_NETWORK)} "
+            f"-t {shlex.quote(image)} -f Dockerfile.corecompat .",
             cwd=self.directory,
         )
         self.image = image
@@ -306,7 +308,11 @@ class DockerNode(CoreNode):
             "services": {
                 self.compose_name: {
                     "image": compatible_image,
-                    "build": {"context": ".", "dockerfile": dockerfile_path.name},
+                    "build": {
+                        "context": ".",
+                        "dockerfile": dockerfile_path.name,
+                        "network": COMPAT_BUILD_NETWORK,
+                    },
                 }
             }
         }

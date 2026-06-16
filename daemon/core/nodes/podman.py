@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 PODMAN: str = "podman"
 PODMAN_COMPOSE: str = "podman-compose"
+COMPAT_BUILD_NETWORK: str = "host"
 
 
 @dataclass
@@ -228,7 +229,8 @@ class PodmanNode(CoreNode):
             dockerfile_path, self._compatibility_dockerfile(self.image)
         )
         self.host_cmd(
-            f"{PODMAN} build -t {shlex.quote(image)} -f Dockerfile.corecompat .",
+            f"{PODMAN} build --network {shlex.quote(COMPAT_BUILD_NETWORK)} "
+            f"-t {shlex.quote(image)} -f Dockerfile.corecompat .",
             cwd=self.directory,
         )
         self.image = image
@@ -253,7 +255,11 @@ class PodmanNode(CoreNode):
             "services": {
                 self.compose_name: {
                     "image": compatible_image,
-                    "build": {"context": ".", "dockerfile": dockerfile_path.name},
+                    "build": {
+                        "context": ".",
+                        "dockerfile": dockerfile_path.name,
+                        "network": COMPAT_BUILD_NETWORK,
+                    },
                 }
             }
         }

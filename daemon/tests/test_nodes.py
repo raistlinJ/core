@@ -240,7 +240,7 @@ class TestNodes:
             Path("/tmp/n1.conf/Dockerfile.corecompat"), "FROM ubuntu\n"
         )
         node.host_cmd.assert_called_once_with(
-            "docker build -t core-compat-1000-1-n1:latest "
+            "docker build --network host -t core-compat-1000-1-n1:latest "
             "-f Dockerfile.corecompat .",
             cwd=Path("/tmp/n1.conf"),
         )
@@ -279,6 +279,7 @@ class TestNodes:
         _, override = node._write_host_file.call_args_list[1].args
         assert "core-compat-1000-1-n1:latest" in override
         assert "Dockerfile.corecompat" in override
+        assert "network: host" in override
 
     def test_docker_compose_checks_image_compatibility(self):
         # given
