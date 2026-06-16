@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 
 PODMAN: str = "podman"
 PODMAN_COMPOSE: str = "podman-compose"
-COMPAT_BUILD_NETWORK: str = "core-compat-build"
 
 
 @dataclass
@@ -179,13 +178,6 @@ class PodmanNode(CoreNode):
         name = "".join(c if c.isalnum() or c in "._-" else "-" for c in value)
         return f"{name}:latest"
 
-    def _ensure_build_network(self) -> None:
-        network = shlex.quote(COMPAT_BUILD_NETWORK)
-        self.host_cmd(
-            f"{PODMAN} network exists {network} || {PODMAN} network create {network}",
-            shell=True,
-        )
-
     def _image_user(self, image: str) -> str | None:
         quoted_image = shlex.quote(image)
         try:
@@ -210,20 +202,20 @@ class PodmanNode(CoreNode):
         if "\n" in image or "\r" in image:
             raise CoreError(f"invalid image name: {image!r}")
         user = self._image_user(image)
+        install_cmd = (
+            "if command -v apt-get >/dev/null 2>&1; then "
+            "(apt-get update || true) && apt-get install -y --no-install-recommends "
+            "bash iproute2 iputils-ping ethtool && rm -rf /var/lib/apt/lists/*; "
+            "elif command -v apk >/dev/null 2>&1; then "
+            "apk add --no-cache bash iproute2 iputils ethtool; "
+            "elif command -v yum >/dev/null 2>&1; then "
+            "yum install -y bash iproute iputils ethtool && yum clean all; "
+            "else echo 'no supported package manager found' >&2; exit 1; fi"
+        )
         lines = [
             f"FROM {image}",
             "USER root",
-            'SHELL ["/bin/sh", "-c"]',
-            "RUN set -eux; \\",
-            "    if command -v apt-get >/dev/null 2>&1; then \\",
-            "        (apt-get update || true) && apt-get install -y --no-install-recommends bash iproute2 iputils-ping ethtool && rm -rf /var/lib/apt/lists/*; \\",
-            "    elif command -v apk >/dev/null 2>&1; then \\",
-            "        apk add --no-cache bash iproute2 iputils ethtool; \\",
-            "    elif command -v yum >/dev/null 2>&1; then \\",
-            "        yum install -y bash iproute iputils ethtool && yum clean all; \\",
-            "    else \\",
-            "        echo 'no supported package manager found' >&2; exit 1; \\",
-            "    fi",
+            f'RUN ["/bin/sh", "-euxc", "{install_cmd}"]',
         ]
         if user:
             lines.append(f"USER {user}")
@@ -235,10 +227,8 @@ class PodmanNode(CoreNode):
         self._write_host_file(
             dockerfile_path, self._compatibility_dockerfile(self.image)
         )
-        self._ensure_build_network()
         self.host_cmd(
-            f"{PODMAN} build --network {shlex.quote(COMPAT_BUILD_NETWORK)} "
-            f"-t {shlex.quote(image)} -f Dockerfile.corecompat .",
+            f"{PODMAN} build -t {shlex.quote(image)} -f Dockerfile.corecompat .",
             cwd=self.directory,
         )
         self.image = image
@@ -258,18 +248,12 @@ class PodmanNode(CoreNode):
 
         dockerfile_path = self.directory / "Dockerfile.corecompat"
         self._write_host_file(dockerfile_path, self._compatibility_dockerfile(image))
-        self._ensure_build_network()
         compatible_image = self._compatible_image_name()
-        self.host_cmd(
-            f"{PODMAN} build --network {shlex.quote(COMPAT_BUILD_NETWORK)} "
-            f"-t {shlex.quote(compatible_image)} -f Dockerfile.corecompat .",
-            cwd=self.directory,
-        )
         override = {
             "services": {
                 self.compose_name: {
                     "image": compatible_image,
-                    "pull_policy": "never",
+                    "build": {"context": ".", "dockerfile": dockerfile_path.name},
                 }
             }
         }
