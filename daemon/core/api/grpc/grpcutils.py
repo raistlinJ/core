@@ -70,8 +70,10 @@ def add_node_data(
     options.icon = node_proto.icon
     options.canvas = node_proto.canvas
     if isinstance(options, CoreNodeOptions):
-        options.model = node_proto.model
-        options.services = node_proto.services
+        if node_proto.model:
+            options.model = node_proto.model
+        if node_proto.services:
+            options.services = list(node_proto.services)
     if isinstance(options, EmaneOptions):
         options.emane_model = node_proto.emane
     if isinstance(options, (DockerOptions, PodmanOptions)):

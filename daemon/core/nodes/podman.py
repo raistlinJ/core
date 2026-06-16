@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
 
+import yaml
 from mako.template import Template
 
 from core.emulator.distributed import DistributedServer
@@ -26,6 +27,7 @@ PODMAN_COMPOSE: str = "podman-compose"
 
 @dataclass
 class PodmanOptions(CoreNodeOptions):
+    services: list[str] = field(default_factory=lambda: ["DefaultRoute"])
     image: str = "ubuntu"
     """image used when creating container"""
     binds: list[tuple[str, str]] = field(default_factory=list)
@@ -45,7 +47,7 @@ class PodmanOptions(CoreNodeOptions):
     """
     Service name to start, within the provided compose file.
     """
-    image_compatibility: bool = True
+    image_compatibility: bool = False
     docker_command: str = "tail -f /dev/null"
     run_image_default: bool = False
 
@@ -163,7 +165,100 @@ class PodmanNode(CoreNode):
         return f"{self.session.id}.{self.id}.{name}"
 
     def should_check_image_compatibility(self) -> bool:
-        return self.image_compatibility and not self.compose
+        return self.image_compatibility
+
+    def _write_host_file(self, file_path: Path, contents: str) -> None:
+        self.host_cmd(
+            f"printf %s {shlex.quote(contents)} > {shlex.quote(str(file_path))}",
+            shell=True,
+        )
+
+    def _compatible_image_name(self) -> str:
+        value = f"core-compat-{self.session.id}-{self.id}-{self.name}".lower()
+        name = "".join(c if c.isalnum() or c in "._-" else "-" for c in value)
+        return f"{name}:latest"
+
+    def _image_user(self, image: str) -> str | None:
+        quoted_image = shlex.quote(image)
+        try:
+            return self._inspect_image_user(quoted_image)
+        except CoreCommandError:
+            try:
+                self.host_cmd(f"{PODMAN} pull {quoted_image}")
+                return self._inspect_image_user(quoted_image)
+            except CoreCommandError:
+                logger.warning(
+                    "node(%s) failed to inspect image user: %s", self.name, image
+                )
+                return None
+
+    def _inspect_image_user(self, quoted_image: str) -> str | None:
+        user = self.host_cmd(
+            f"{PODMAN} image inspect -f '{{{{.Config.User}}}}' {quoted_image}"
+        ).strip()
+        return user or None
+
+    def _compatibility_dockerfile(self, image: str) -> str:
+        if "\n" in image or "\r" in image:
+            raise CoreError(f"invalid image name: {image!r}")
+        user = self._image_user(image)
+        lines = [
+            f"FROM {image}",
+            "USER root",
+            "RUN set -eux; \\",
+            "    if command -v apt-get >/dev/null 2>&1; then \\",
+            "        (apt-get update || true) && apt-get install -y --no-install-recommends bash iproute2 iputils-ping ethtool && rm -rf /var/lib/apt/lists/*; \\",
+            "    elif command -v apk >/dev/null 2>&1; then \\",
+            "        apk add --no-cache bash iproute2 iputils ethtool; \\",
+            "    elif command -v yum >/dev/null 2>&1; then \\",
+            "        yum install -y bash iproute iputils ethtool && yum clean all; \\",
+            "    else \\",
+            "        echo 'no supported package manager found' >&2; exit 1; \\",
+            "    fi",
+        ]
+        if user:
+            lines.append(f"USER {user}")
+        return "\n".join(lines) + "\n"
+
+    def setup_image_compatibility(self) -> None:
+        image = self._compatible_image_name()
+        dockerfile_path = self.directory / "Dockerfile.corecompat"
+        self._write_host_file(
+            dockerfile_path, self._compatibility_dockerfile(self.image)
+        )
+        self.host_cmd(
+            f"{PODMAN} build -t {shlex.quote(image)} -f Dockerfile.corecompat .",
+            cwd=self.directory,
+        )
+        self.image = image
+
+    def _compose_image_compatibility_override(self, rendered: str) -> Path | None:
+        data = yaml.safe_load(rendered) or {}
+        services = data.get("services") or {}
+        service = services.get(self.compose_name) or {}
+        image = service.get("image")
+        if not image:
+            logger.warning(
+                "node(%s) compose service(%s) has no image to prepare",
+                self.name,
+                self.compose_name,
+            )
+            return None
+
+        dockerfile_path = self.directory / "Dockerfile.corecompat"
+        self._write_host_file(dockerfile_path, self._compatibility_dockerfile(image))
+        compatible_image = self._compatible_image_name()
+        override = {
+            "services": {
+                self.compose_name: {
+                    "image": compatible_image,
+                    "build": {"context": ".", "dockerfile": dockerfile_path.name},
+                }
+            }
+        }
+        override_path = self.directory / "podman-compose.corecompat.yml"
+        self._write_host_file(override_path, yaml.safe_dump(override, sort_keys=False))
+        return override_path
 
     def alive(self) -> bool:
         """
@@ -204,17 +299,23 @@ class PodmanNode(CoreNode):
                     node=self,
                     hostname=hostname,
                     podman=PODMAN,
-                    podman_compose=PODMAN_COMPOSE
+                    podman_compose=PODMAN_COMPOSE,
                 )
-                rendered = rendered.replace('"', r'\"')
-                rendered = "\\n".join(rendered.splitlines())
                 compose_path = self.directory / "podman-compose.yml"
-                self.host_cmd(f'printf "{rendered}" > {compose_path}', shell=True)
+                self._write_host_file(compose_path, rendered)
+                compose_files = "-f podman-compose.yml"
+                if self.should_check_image_compatibility():
+                    override_path = self._compose_image_compatibility_override(rendered)
+                    if override_path:
+                        compose_files += f" -f {override_path.name}"
                 self.host_cmd(
-                    f"{PODMAN_COMPOSE} up -d {self.compose_name}", cwd=self.directory
+                    f"{PODMAN_COMPOSE} {compose_files} up -d {self.compose_name}",
+                    cwd=self.directory,
                 )
                 self.runtime_container = self._resolve_runtime_container()
             else:
+                if self.should_check_image_compatibility():
+                    self.setup_image_compatibility()
                 # setup commands for creating bind/volume mounts
                 binds = ""
                 for src, dst in self.binds:
@@ -289,8 +390,6 @@ class PodmanNode(CoreNode):
                     pass
             logger.debug("node(%s) pid: %s", self.name, self.pid)
             self.up = True
-            if self.should_check_image_compatibility():
-                self.check_image_compatibility()
             if self.run_image_default:
                 self.run_default_command()
             elif startup_command and not self.compose:
@@ -357,91 +456,6 @@ class PodmanNode(CoreNode):
                 logger.warning("node(%s) image %s has no default ENTRYPOINT or CMD", self.name, image)
         except Exception as e:
             logger.error("node(%s) failed to run default command: %s", self.name, e)
-
-    def sh_cmd(self, command: str) -> str:
-        return f"/bin/sh -c {shlex.quote(command)}"
-
-    def check_image_compatibility(self) -> None:
-        """
-        Checks for required packages and attempts to install them if missing.
-        """
-        required_tools = ["bash", "ip", "ping", "ethtool"]
-        missing_tools = []
-        for tool in required_tools:
-            try:
-                self.cmd(self.sh_cmd(f"command -v {tool}"))
-            except CoreCommandError:
-                missing_tools.append(tool)
-
-        if not missing_tools:
-            return
-
-        logger.info("node(%s) missing tools: %s", self.name, missing_tools)
-        package_managers = [
-            (
-                "apt-get",
-                "(apt-get update || true) && apt-get install -y",
-                {
-                    "bash": "bash",
-                    "ip": "iproute2",
-                    "ping": "iputils-ping",
-                    "ethtool": "ethtool",
-                },
-            ),
-            (
-                "apk",
-                "apk add",
-                {
-                    "bash": "bash",
-                    "ip": "iproute2",
-                    "ping": "iputils",
-                    "ethtool": "ethtool",
-                },
-            ),
-            (
-                "yum",
-                "yum install -y",
-                {
-                    "bash": "bash",
-                    "ip": "iproute",
-                    "ping": "iputils",
-                    "ethtool": "ethtool",
-                },
-            ),
-        ]
-
-        for manager, install_cmd, packages in package_managers:
-            try:
-                self.cmd(self.sh_cmd(f"command -v {manager}"))
-            except CoreCommandError:
-                continue
-
-            to_install = list(
-                dict.fromkeys(packages[tool] for tool in missing_tools)
-            )
-            logger.info(
-                "node(%s) attempting to install %s using %s",
-                self.name,
-                to_install,
-                manager,
-            )
-            try:
-                self.cmd(self.sh_cmd(f"{install_cmd} {' '.join(to_install)}"))
-            except CoreCommandError as e:
-                logger.warning(
-                    "node(%s) failed to install missing tools using %s: %s",
-                    self.name,
-                    manager,
-                    e,
-                )
-            return
-
-        logger.warning(
-            "node(%s) could not install missing tools, no supported package "
-            "manager found: %s",
-            self.name,
-            missing_tools,
-        )
 
     def shutdown(self) -> None:
         """

@@ -767,11 +767,13 @@ class CoreXmlReader:
         options.canvas = canvas
         # check for special options
         if isinstance(options, CoreNodeOptions):
-            options.model = model
+            if model:
+                options.model = model
             service_elements = device_element.find("services")
             if service_elements is None:
                 service_elements = device_element.find("configservices")
             if service_elements is not None:
+                options.services.clear()
                 options.services.extend(
                     x.get("name") for x in service_elements.iterchildren()
                 )

@@ -50,16 +50,17 @@ newgrp docker
 
 CORE configures Docker node interfaces and stock default routes from the host
 network namespace, so compose-backed application images do not need `ip`,
-`ping`, or `ethtool` for CORE to attach them to a scenario. CORE also avoids
-installing packages into compose-backed application containers, since those
-images are often purpose-built and may have pinned, archived, or intentionally
-limited package repositories.
+`ping`, or `ethtool` for CORE to attach them to a scenario.
 
-Non-compose Docker nodes can attempt to install basic networking tools such as
-`ip`, `ping`, and `ethtool` when a container starts, using common package
-managers such as `apt-get`, `apk`, or `yum`. For repeatable scenarios, or when
-you want those tools available inside the container terminal, build them into
-the image instead.
+Docker nodes have an opt-in image compatibility helper that builds a derived
+image before the node starts. The derived image installs basic networking tools
+such as `ip`, `ping`, and `ethtool` using common package managers such as
+`apt-get`, `apk`, or `yum`, while the build still has normal image-pull/build
+network access. For compose-backed nodes, CORE writes a compose override that
+builds and runs the derived image for the selected service.
+
+For repeatable scenarios, or when you want full control of what is available
+inside the container terminal, build those tools into your image directly.
 
 Example Dockerfile:
 

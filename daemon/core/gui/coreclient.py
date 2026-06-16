@@ -619,7 +619,10 @@ class CoreClient:
             node.services = set(services)
         # assign default services to CORE node
         else:
-            services = self.session.default_services.get(model)
+            service_model = model
+            if service_model is None and nutils.has_image(node_type):
+                service_model = "PC"
+            services = self.session.default_services.get(service_model)
             if services:
                 node.services = set(services)
         logger.info(

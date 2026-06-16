@@ -4,7 +4,7 @@ import pytest
 
 from core.emulator.data import InterfaceData
 from core.emulator.session import Session
-from core.errors import CoreCommandError, CoreError
+from core.errors import CoreError
 from core.nodes.base import CoreNode
 from core.nodes.docker import DockerNode, DockerOptions
 from core.nodes.network import HubNode, SwitchNode, WlanNode
@@ -206,75 +206,68 @@ class TestNodes:
         with pytest.raises(CoreError):
             session.create_control_net(0, ip_prefix, None, None)
 
-    def test_container_options_enable_image_compatibility(self):
+    def test_container_options_defaults(self):
         # given
         docker_options = DockerOptions()
         podman_options = PodmanOptions()
 
         # then
-        assert docker_options.image_compatibility
-        assert podman_options.image_compatibility
+        assert not docker_options.image_compatibility
+        assert not podman_options.image_compatibility
+        assert docker_options.model == "PC"
+        assert podman_options.model == "PC"
+        assert docker_options.services == ["DefaultRoute"]
+        assert podman_options.services == ["DefaultRoute"]
 
-    def test_docker_image_compatibility_installs_network_tools(self):
+    def test_docker_image_compatibility_builds_derived_image(self):
         # given
         node = DockerNode.__new__(DockerNode)
         node.name = "n1"
-        commands = []
-
-        def cmd(command: str):
-            commands.append(command)
-            if command in [
-                "/bin/sh -c 'command -v bash'",
-                "/bin/sh -c 'command -v ip'",
-                "/bin/sh -c 'command -v ping'",
-                "/bin/sh -c 'command -v ethtool'",
-            ]:
-                raise CoreCommandError(1, command)
-            return ""
-
-        node.cmd = mock.MagicMock(side_effect=cmd)
+        node.id = 1
+        node.image = "ubuntu:latest"
+        node.directory = Path("/tmp/n1.conf")
+        node.session = mock.MagicMock(id=1000)
+        node._write_host_file = mock.MagicMock()
+        node._compatibility_dockerfile = mock.MagicMock(return_value="FROM ubuntu\n")
+        node.host_cmd = mock.MagicMock()
 
         # when
-        node.check_image_compatibility()
+        node.setup_image_compatibility()
 
         # then
-        assert commands[-1] == (
-            "/bin/sh -c '(apt-get update || true) && apt-get install -y "
-            "bash iproute2 iputils-ping ethtool'"
+        assert node.image == "core-compat-1000-1-n1:latest"
+        node._write_host_file.assert_called_once_with(
+            Path("/tmp/n1.conf/Dockerfile.corecompat"), "FROM ubuntu\n"
+        )
+        node.host_cmd.assert_called_once_with(
+            "docker build -t core-compat-1000-1-n1:latest "
+            "-f Dockerfile.corecompat .",
+            cwd=Path("/tmp/n1.conf"),
         )
 
-    def test_docker_image_compatibility_stops_after_install_failure(self):
+    def test_docker_compose_image_compatibility_override(self):
         # given
         node = DockerNode.__new__(DockerNode)
         node.name = "n1"
-        commands = []
-        install_cmd = (
-            "/bin/sh -c '(apt-get update || true) && apt-get install -y "
-            "bash iproute2 iputils-ping ethtool'"
-        )
-
-        def cmd(command: str):
-            commands.append(command)
-            if command in [
-                "/bin/sh -c 'command -v bash'",
-                "/bin/sh -c 'command -v ip'",
-                "/bin/sh -c 'command -v ping'",
-                "/bin/sh -c 'command -v ethtool'",
-                install_cmd,
-            ]:
-                raise CoreCommandError(1, command)
-            return ""
-
-        node.cmd = mock.MagicMock(side_effect=cmd)
+        node.id = 1
+        node.compose_name = "web"
+        node.directory = Path("/tmp/n1.conf")
+        node.session = mock.MagicMock(id=1000)
+        node._write_host_file = mock.MagicMock()
+        node._compatibility_dockerfile = mock.MagicMock(return_value="FROM app\n")
+        rendered = "services:\n  web:\n    image: vulhub/spring-boot-jetty:3.2.4\n"
 
         # when
-        node.check_image_compatibility()
+        override_path = node._compose_image_compatibility_override(rendered)
 
         # then
-        assert commands[-1] == install_cmd
-        assert "/bin/sh -c 'command -v apk'" not in commands
+        assert override_path == Path("/tmp/n1.conf/docker-compose.corecompat.yml")
+        assert node._write_host_file.call_count == 2
+        _, override = node._write_host_file.call_args_list[1].args
+        assert "core-compat-1000-1-n1:latest" in override
+        assert "Dockerfile.corecompat" in override
 
-    def test_docker_compose_skips_image_compatibility(self):
+    def test_docker_compose_checks_image_compatibility(self):
         # given
         node = DockerNode.__new__(DockerNode)
         node.image_compatibility = True
@@ -284,4 +277,4 @@ class TestNodes:
         result = node.should_check_image_compatibility()
 
         # then
-        assert not result
+        assert result
