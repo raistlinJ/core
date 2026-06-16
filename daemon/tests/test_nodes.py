@@ -1,4 +1,5 @@
 from unittest import mock
+from pathlib import Path
 
 import pytest
 
@@ -257,6 +258,54 @@ class TestNodes:
         # then
         assert 'RUN ["/bin/sh", "-euxc", "' in dockerfile
         assert "SHELL [\"/bin/sh\", \"-c\"]" not in dockerfile
+
+    def test_docker_prepare_compose_project_local(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.directory = Path("/tmp/n1.conf")
+        node.server = None
+        node._write_host_file = mock.MagicMock()
+
+        with mock.patch("core.nodes.docker.shutil.copytree") as copytree:
+            # when
+            compose_path = node._prepare_compose_project(
+                "/tmp/project/docker-compose.yml", "services:\n"
+            )
+
+        # then
+        assert compose_path == Path("/tmp/n1.conf/docker-compose.yml")
+        copytree.assert_called_once_with(
+            Path("/tmp/project"),
+            Path("/tmp/n1.conf"),
+            dirs_exist_ok=True,
+            symlinks=True,
+        )
+        node._write_host_file.assert_called_once_with(
+            Path("/tmp/n1.conf/docker-compose.yml"), "services:\n"
+        )
+
+    def test_docker_prepare_compose_project_remote(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.directory = Path("/tmp/n1.conf")
+        node.server = mock.MagicMock()
+        node.host_cmd = mock.MagicMock()
+        node._write_host_file = mock.MagicMock()
+
+        # when
+        compose_path = node._prepare_compose_project(
+            "/tmp/project/docker-compose.yml", "services:\n"
+        )
+
+        # then
+        assert compose_path == Path("/tmp/n1.conf/docker-compose.yml")
+        node.host_cmd.assert_called_once_with(
+            'src_dir=$(cd /tmp/project && pwd -P) && dst_dir=$(cd /tmp/n1.conf && pwd -P) && if [ "$src_dir" != "$dst_dir" ]; then cp -a "$src_dir"/. "$dst_dir"/; fi',
+            shell=True,
+        )
+        node._write_host_file.assert_called_once_with(
+            Path("/tmp/n1.conf/docker-compose.yml"), "services:\n"
+        )
 
     def test_docker_compose_image_compatibility_override(self):
         # given

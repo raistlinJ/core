@@ -57,7 +57,10 @@ image before the node starts. The derived image installs basic networking tools
 such as `ip`, `ping`, and `ethtool` using common package managers such as
 `apt-get`, `apk`, or `yum`, while the build still has normal image-pull/build
 network access. For compose-backed nodes, CORE writes a compose override that
-builds and runs the derived image for the selected service.
+builds and runs the derived image for the selected service. CORE also copies
+the compose file's project directory into the node session directory before
+launching compose, so relative paths inside that compose project continue to
+work as long as they are relative to the compose file's directory.
 
 For repeatable scenarios, or when you want full control of what is available
 inside the container terminal, build those tools into your image directly.

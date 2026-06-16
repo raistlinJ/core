@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import shlex
+import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -174,6 +175,27 @@ class PodmanNode(CoreNode):
             shell=True,
         )
 
+    def _prepare_compose_project(self, compose_path: str, rendered: str) -> Path:
+        compose_file = Path(compose_path)
+        source_dir = compose_file.parent or Path(".")
+        if self.server is None:
+            src_dir = source_dir.resolve()
+            dst_dir = self.directory.resolve()
+            if src_dir != dst_dir:
+                shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True, symlinks=True)
+        else:
+            src_dir = shlex.quote(str(source_dir))
+            dst_dir = shlex.quote(str(self.directory))
+            self.host_cmd(
+                f"src_dir=$(cd {src_dir} && pwd -P) && "
+                f"dst_dir=$(cd {dst_dir} && pwd -P) && "
+                'if [ "$src_dir" != "$dst_dir" ]; then cp -a "$src_dir"/. "$dst_dir"/; fi',
+                shell=True,
+            )
+        compose_file = self.directory / compose_file.name
+        self._write_host_file(compose_file, rendered)
+        return compose_file
+
     def _compatible_image_name(self) -> str:
         value = f"core-compat-{self.session.id}-{self.id}-{self.name}".lower()
         name = "".join(c if c.isalnum() or c in "._-" else "-" for c in value)
@@ -308,9 +330,8 @@ class PodmanNode(CoreNode):
                     podman=PODMAN,
                     podman_compose=PODMAN_COMPOSE,
                 )
-                compose_path = self.directory / "podman-compose.yml"
-                self._write_host_file(compose_path, rendered)
-                compose_files = "-f podman-compose.yml"
+                compose_path = self._prepare_compose_project(compose_path, rendered)
+                compose_files = f"-f {compose_path.name}"
                 if self.should_check_image_compatibility():
                     override_path = self._compose_image_compatibility_override(rendered)
                     if override_path:
