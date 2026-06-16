@@ -228,6 +228,7 @@ class TestNodes:
         node.directory = Path("/tmp/n1.conf")
         node.session = mock.MagicMock(id=1000)
         node._write_host_file = mock.MagicMock()
+        node._ensure_build_network = mock.MagicMock()
         node._compatibility_dockerfile = mock.MagicMock(return_value="FROM ubuntu\n")
         node.host_cmd = mock.MagicMock()
 
@@ -239,8 +240,9 @@ class TestNodes:
         node._write_host_file.assert_called_once_with(
             Path("/tmp/n1.conf/Dockerfile.corecompat"), "FROM ubuntu\n"
         )
+        node._ensure_build_network.assert_called_once_with()
         node.host_cmd.assert_called_once_with(
-            "docker build -t core-compat-1000-1-n1:latest "
+            "docker build --network core-compat-build -t core-compat-1000-1-n1:latest "
             "-f Dockerfile.corecompat .",
             cwd=Path("/tmp/n1.conf"),
         )
@@ -267,6 +269,7 @@ class TestNodes:
         node.directory = Path("/tmp/n1.conf")
         node.session = mock.MagicMock(id=1000)
         node._write_host_file = mock.MagicMock()
+        node._ensure_build_network = mock.MagicMock()
         node._compatibility_dockerfile = mock.MagicMock(return_value="FROM app\n")
         rendered = "services:\n  web:\n    image: vulhub/spring-boot-jetty:3.2.4\n"
 
@@ -276,9 +279,11 @@ class TestNodes:
         # then
         assert override_path == Path("/tmp/n1.conf/docker-compose.corecompat.yml")
         assert node._write_host_file.call_count == 2
+        node._ensure_build_network.assert_called_once_with()
         _, override = node._write_host_file.call_args_list[1].args
         assert "core-compat-1000-1-n1:latest" in override
         assert "Dockerfile.corecompat" in override
+        assert "network: core-compat-build" in override
 
     def test_docker_compose_checks_image_compatibility(self):
         # given
