@@ -299,6 +299,8 @@ class DockerNode(CoreNode):
             "-e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' "
             "-e 's|https://ports.ubuntu.com/ubuntu-ports|http://old-releases.ubuntu.com/ubuntu|g' "
             "-e 's|http://ports.ubuntu.com/ubuntu-ports|http://old-releases.ubuntu.com/ubuntu|g' "
+            "-e '/^[[:space:]]*deb .*archive\\.debian\\.org\\/debian [^[:space:]]*-updates[[:space:]]/d' "
+            "-e '/^[[:space:]]*deb-src .*archive\\.debian\\.org\\/debian [^[:space:]]*-updates[[:space:]]/d' "
             "$source; done; }; "
             "if ! apt_update; then apt_fix_sources; apt_update; fi && "
             "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "

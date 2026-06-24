@@ -274,6 +274,7 @@ class TestNodes:
         assert "if ! apt_update; then apt_fix_sources; apt_update; fi" in dockerfile
         assert "archive.debian.org/debian" in dockerfile
         assert "old-releases.ubuntu.com/ubuntu" in dockerfile
+        assert "archive\\.debian\\.org\\/debian [^[:space:]]*-updates" in dockerfile
         assert "done; };" in dockerfile
 
     def test_docker_prepare_compose_project_local(self):
