@@ -1,3 +1,4 @@
+import json
 from unittest import mock
 from pathlib import Path
 
@@ -256,7 +257,8 @@ class TestNodes:
         dockerfile = node._compatibility_dockerfile("example:latest")
 
         # then
-        assert 'RUN ["/bin/sh", "-euxc", "' in dockerfile
+        run = dockerfile.splitlines()[2].replace("RUN ", "", 1)
+        assert json.loads(run)[:2] == ["/bin/sh", "-euxc"]
         assert "SHELL [\"/bin/sh\", \"-c\"]" not in dockerfile
 
     @pytest.mark.parametrize("node_type", [DockerNode, PodmanNode])

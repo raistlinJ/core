@@ -314,7 +314,7 @@ class DockerNode(CoreNode):
         lines = [
             f"FROM {image}",
             "USER root",
-            f'RUN ["/bin/sh", "-euxc", "{install_cmd}"]',
+            f"RUN {json.dumps(['/bin/sh', '-euxc', install_cmd])}",
         ]
         if user:
             lines.append(f"USER {user}")
