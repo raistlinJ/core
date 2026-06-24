@@ -9,7 +9,7 @@ from core.errors import CoreError
 from core.nodes.base import CoreNode
 from core.nodes.docker import DockerNode, DockerOptions
 from core.nodes.network import HubNode, SwitchNode, WlanNode
-from core.nodes.podman import PodmanOptions
+from core.nodes.podman import PodmanNode, PodmanOptions
 
 MODELS = ["router", "host", "PC", "mdr"]
 NET_TYPES = [SwitchNode, HubNode, WlanNode]
@@ -258,6 +258,22 @@ class TestNodes:
         # then
         assert 'RUN ["/bin/sh", "-euxc", "' in dockerfile
         assert "SHELL [\"/bin/sh\", \"-c\"]" not in dockerfile
+
+    @pytest.mark.parametrize("node_type", [DockerNode, PodmanNode])
+    def test_image_compatibility_repairs_archived_apt_sources(self, node_type):
+        # given
+        node = node_type.__new__(node_type)
+        node.name = "n1"
+        node._image_user = mock.MagicMock(return_value=None)
+
+        # when
+        dockerfile = node._compatibility_dockerfile("example:latest")
+
+        # then
+        assert "Acquire::Check-Valid-Until=false" in dockerfile
+        assert "if ! apt_update; then apt_fix_sources; apt_update; fi" in dockerfile
+        assert "archive.debian.org/debian" in dockerfile
+        assert "old-releases.ubuntu.com/ubuntu" in dockerfile
 
     def test_docker_prepare_compose_project_local(self):
         # given
