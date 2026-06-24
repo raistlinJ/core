@@ -246,7 +246,7 @@ class PodmanNode(CoreNode):
             "-e 's|http://security.ubuntu.com/ubuntu|http://old-releases.ubuntu.com/ubuntu|g' "
             "-e 's|https://ports.ubuntu.com/ubuntu-ports|http://old-releases.ubuntu.com/ubuntu|g' "
             "-e 's|http://ports.ubuntu.com/ubuntu-ports|http://old-releases.ubuntu.com/ubuntu|g' "
-            "$source; }; "
+            "$source; done; }; "
             "if ! apt_update; then apt_fix_sources; apt_update; fi && "
             "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "
             "bash iproute2 iputils-ping ethtool && rm -rf /var/lib/apt/lists/*; "
