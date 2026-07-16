@@ -327,6 +327,73 @@ class TestNodes:
             Path("/tmp/n1.conf/docker-compose.yml"), "services:\n"
         )
 
+    def test_docker_compose_args_isolate_node_volumes(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.name = "web_node"
+        node.id = 1
+        node.session = mock.MagicMock(id=1000)
+        node.compose_files = ["compose.yaml", "docker-compose.corecompat.yml"]
+
+        # when
+        args = node._compose_args()
+
+        # then
+        assert args == (
+            "--project-name core-1000-1-web_node -f compose.yaml "
+            "-f docker-compose.corecompat.yml"
+        )
+
+    def test_docker_counts_compose_network_interfaces(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.net_cmd = mock.MagicMock(
+            return_value=(
+                "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN\n"
+                "2: eth0@if3: <BROADCAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP\n"
+                "4: eth1@if5: <BROADCAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP\n"
+            )
+        )
+
+        # when
+        count = node._compose_network_interface_count()
+
+        # then
+        assert count == 2
+        node.net_cmd.assert_called_once_with("ip -o link show")
+
+    def test_docker_compose_adopts_core_interfaces_after_compose_interfaces(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.compose = "/tmp/compose.yaml"
+        node.compose_interface_count = 1
+        node.get_iface_id = mock.MagicMock(return_value=0)
+        iface = mock.MagicMock(name="veth1")
+
+        # when
+        with mock.patch.object(CoreNode, "adopt_iface") as adopt_iface:
+            node.adopt_iface(iface, "veth1")
+
+        # then
+        adopt_iface.assert_called_once_with(iface, "eth1")
+
+    def test_docker_volume_mountpoint_strips_command_newline(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.host_cmd = mock.MagicMock(
+            return_value="/var/lib/docker/volumes/data/_data\n"
+        )
+        volume = mock.MagicMock(src="data")
+
+        # when
+        mountpoint = node._volume_mountpoint(volume)
+
+        # then
+        assert mountpoint == "/var/lib/docker/volumes/data/_data"
+        node.host_cmd.assert_called_once_with(
+            "docker volume inspect -f '{{.Mountpoint}}' data"
+        )
+
     def test_docker_compose_image_compatibility_override(self):
         # given
         node = DockerNode.__new__(DockerNode)

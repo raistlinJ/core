@@ -14,7 +14,7 @@ from mako.template import Template
 from core import utils
 from core.emulator.distributed import DistributedServer
 from core.errors import CoreCommandError, CoreError
-from core.executables import BASH
+from core.executables import BASH, IP
 from core.nodes.base import CoreNode, CoreNodeOptions
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,8 @@ class DockerNode(CoreNode):
         self.volumes: dict[str, DockerVolume] = {}
         self.env: dict[str, str] = {}
         self.runtime_container: str = self.name
+        self.compose_files: list[str] = []
+        self.compose_interface_count: int = 0
         for src, dst, unique, delete in options.volumes:
             src_name = self._unique_name(src) if unique else src
             self.volumes[src] = DockerVolume(src_name, dst, unique, delete)
@@ -138,7 +140,9 @@ class DockerNode(CoreNode):
         if not self.compose:
             return self.name
         container = self.host_cmd(
-            f"{DOCKER_COMPOSE} ps -q {self.compose_name}", cwd=self.directory
+            f"{DOCKER_COMPOSE} {self._compose_args()} ps -q "
+            f"{shlex.quote(self.compose_name)}",
+            cwd=self.directory,
         ).strip()
         if not container:
             raise CoreError(
@@ -249,6 +253,40 @@ class DockerNode(CoreNode):
         self._write_host_file(compose_file, rendered)
         return compose_file
 
+    def _compose_project_name(self) -> str:
+        """Return a Docker Compose project name unique to this CORE node."""
+        value = f"core-{self.session.id}-{self.id}-{self.name}".lower()
+        return "".join(c if c.isalnum() or c in "_-" else "-" for c in value)
+
+    def _compose_args(self) -> str:
+        """Return common Compose options for this node's private project."""
+        args = ["--project-name", shlex.quote(self._compose_project_name())]
+        args.extend(
+            option
+            for compose_file in self.compose_files
+            for option in ("-f", shlex.quote(compose_file))
+        )
+        return " ".join(args)
+
+    def _compose_network_interface_count(self) -> int:
+        """Return the number of Ethernet interfaces provided by Compose."""
+        output = self.net_cmd(f"{IP} -o link show")
+        count = 0
+        for line in output.splitlines():
+            fields = line.split(":", 2)
+            if len(fields) < 2:
+                continue
+            interface = fields[1].strip().split("@", 1)[0]
+            if interface.startswith("eth") and interface[3:].isdigit():
+                count += 1
+        return count
+
+    def adopt_iface(self, iface, name: str) -> None:
+        """Adopt CORE links without replacing Compose's network interfaces."""
+        if self.compose and name == iface.name:
+            name = f"eth{self.get_iface_id(iface) + self.compose_interface_count}"
+        super().adopt_iface(iface, name)
+
     def _compatible_image_name(self) -> str:
         value = f"core-compat-{self.session.id}-{self.id}-{self.name}".lower()
         name = "".join(c if c.isalnum() or c in "._-" else "-" for c in value)
@@ -273,6 +311,12 @@ class DockerNode(CoreNode):
             f"{DOCKER} image inspect -f '{{{{.Config.User}}}}' {quoted_image}"
         ).strip()
         return user or None
+
+    def _volume_mountpoint(self, volume: DockerVolume) -> str:
+        """Return a volume mountpoint suitable for use in shell commands."""
+        return self.host_cmd(
+            f"{DOCKER} volume inspect -f '{{{{.Mountpoint}}}}' {volume.src}"
+        ).strip()
 
     def _compatibility_dockerfile(self, image: str) -> str:
         if "\n" in image or "\r" in image:
@@ -407,13 +451,14 @@ class DockerNode(CoreNode):
                     docker_compose=DOCKER_COMPOSE,
                 )
                 compose_path = self._prepare_compose_project(compose_path, rendered)
-                compose_files = f"-f {compose_path.name}"
+                self.compose_files = [compose_path.name]
                 if self.should_check_image_compatibility():
                     override_path = self._compose_image_compatibility_override(rendered)
                     if override_path:
-                        compose_files += f" -f {override_path.name}"
+                        self.compose_files.append(override_path.name)
                 self.host_cmd(
-                    f"{DOCKER_COMPOSE} {compose_files} up -d {self.compose_name}",
+                    f"{DOCKER_COMPOSE} {self._compose_args()} up -d "
+                    f"{shlex.quote(self.compose_name)}",
                     cwd=self.directory,
                 )
                 self.runtime_container = self._resolve_runtime_container()
@@ -481,9 +526,7 @@ class DockerNode(CoreNode):
                     link_path = self.host_path(Path(dst), True)
                     self.host_cmd(f"ln -s {src} {link_path}")
                 for volume in self.volumes.values():
-                    volume.path = self.host_cmd(
-                        f"{DOCKER} volume inspect -f '{{{{.Mountpoint}}}}' {volume.src}"
-                    )
+                    volume.path = self._volume_mountpoint(volume)
                     link_path = self.host_path(Path(volume.dst), True)
                     self.host_cmd(f"ln -s {volume.path} {link_path}")
                 self.runtime_container = self.name
@@ -500,10 +543,19 @@ class DockerNode(CoreNode):
                 key, value = line.split("=", 1)
                 self.env[key] = value
             if self.compose:
+                # Compose services need their original network (including Docker
+                # DNS and its default route) while their entrypoint starts.
+                # Reserve those ethN names for Compose and place CORE links after
+                # them instead of altering the Compose network namespace.
+                self.compose_interface_count = 1
                 try:
-                    self.node_net_client.delete_device("eth0")
+                    self.compose_interface_count = self._compose_network_interface_count()
                 except CoreCommandError:
-                    pass
+                    logger.warning(
+                        "node(%s) could not inspect Compose network interfaces",
+                        self.name,
+                        exc_info=True,
+                    )
             logger.debug("node(%s) pid: %s", self.name, self.pid)
             self.up = True
             if self.run_image_default:
@@ -583,7 +635,8 @@ class DockerNode(CoreNode):
             if self.compose:
                 try:
                     self.host_cmd(
-                        f"{DOCKER_COMPOSE} down --remove-orphans -t 0",
+                        f"{DOCKER_COMPOSE} {self._compose_args()} down "
+                        "--remove-orphans -t 0",
                         cwd=self.directory,
                     )
                 except CoreCommandError:

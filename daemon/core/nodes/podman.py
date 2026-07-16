@@ -221,6 +221,12 @@ class PodmanNode(CoreNode):
         ).strip()
         return user or None
 
+    def _volume_mountpoint(self, volume: VolumeMount) -> str:
+        """Return a volume mountpoint suitable for use in shell commands."""
+        return self.host_cmd(
+            f"{PODMAN} volume inspect -f '{{{{.Mountpoint}}}}' {volume.src}"
+        ).strip()
+
     def _compatibility_dockerfile(self, image: str) -> str:
         if "\n" in image or "\r" in image:
             raise CoreError(f"invalid image name: {image!r}")
@@ -423,9 +429,7 @@ class PodmanNode(CoreNode):
                     link_path = self.host_path(Path(dst), True)
                     self.host_cmd(f"ln -s {src} {link_path}")
                 for volume in self.volumes.values():
-                    volume.path = self.host_cmd(
-                        f"{PODMAN} volume inspect -f '{{{{.Mountpoint}}}}' {volume.src}"
-                    )
+                    volume.path = self._volume_mountpoint(volume)
                     link_path = self.host_path(Path(volume.dst), True)
                     self.host_cmd(f"ln -s {volume.path} {link_path}")
                 self.runtime_container = self.name
