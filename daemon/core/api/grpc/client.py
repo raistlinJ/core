@@ -256,6 +256,7 @@ class CoreGrpcClient:
         definition: bool = False,
         replace_containers: bool = False,
         replace_images: bool = False,
+        reuse_images: list[str] = None,
     ) -> tuple[bool, list[str]]:
         """
         Start a session.
@@ -269,6 +270,7 @@ class CoreGrpcClient:
             definition=definition,
             replace_containers=replace_containers,
             replace_images=replace_images,
+            reuse_images=reuse_images or [],
         )
         response = self.stub.StartSession(request)
         return response.result, list(response.exceptions)

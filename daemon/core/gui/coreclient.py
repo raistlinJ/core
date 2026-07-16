@@ -431,6 +431,7 @@ class CoreClient:
         definition: bool = False,
         replace_containers: bool = False,
         replace_images: bool = False,
+        reuse_images: list[str] = None,
     ) -> tuple[bool, list[str]]:
         self.session.links = self.get_links(definition)
         self.session.metadata = self.get_metadata()
@@ -441,7 +442,11 @@ class CoreClient:
         exceptions = []
         try:
             result, exceptions = self.client.start_session(
-                self.session, definition, replace_containers, replace_images
+                self.session,
+                definition,
+                replace_containers,
+                replace_images,
+                reuse_images,
             )
             logger.info(
                 "start session(%s) definition(%s), result: %s",

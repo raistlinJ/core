@@ -145,6 +145,7 @@ message StartSessionRequest {
     bool definition = 2;
     bool replace_containers = 3;
     bool replace_images = 4;
+    repeated string reuse_images = 5;
 }
 
 message StartSessionResponse {

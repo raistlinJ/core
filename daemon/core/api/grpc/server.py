@@ -278,6 +278,7 @@ class CoreGrpcServer(core_pb2_grpc.CoreApiServicer):
 
         container_conflicts = []
         image_conflicts = []
+        reuse_images = set(request.reuse_images)
         if not request.definition:
             container_conflicts = self._docker_container_conflicts(
                 request.session.nodes
@@ -292,14 +293,18 @@ class CoreGrpcServer(core_pb2_grpc.CoreApiServicer):
             )
         if image_conflicts and not request.replace_images:
             exceptions.extend(
-                f"{IMAGE_CONFLICT_PREFIX}{name}" for name in image_conflicts
+                f"{IMAGE_CONFLICT_PREFIX}{name}"
+                for name in image_conflicts
+                if name not in reuse_images
             )
         if exceptions:
             return core_pb2.StartSessionResponse(result=False, exceptions=exceptions)
         for name in container_conflicts:
             DockerNode.remove_container(name)
         for name in image_conflicts:
-            DockerNode.remove_image(name)
+            if request.replace_images and name not in reuse_images:
+                DockerNode.remove_image(name)
+        session.reuse_compatibility_images = reuse_images.intersection(image_conflicts)
 
         # clear previous state and setup for creation
         session.clear()

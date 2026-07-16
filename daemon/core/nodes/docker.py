@@ -353,6 +353,10 @@ class DockerNode(CoreNode):
     def _compatible_image_name(self) -> str:
         return self.compatibility_image_name(self.session.id, self.id, self.name)
 
+    def _reuse_compatibility_image(self) -> bool:
+        images = getattr(self.session, "reuse_compatibility_images", set())
+        return self._compatible_image_name() in images
+
     def _image_user(self, image: str) -> str | None:
         quoted_image = shlex.quote(image)
         try:
@@ -428,6 +432,9 @@ class DockerNode(CoreNode):
 
     def setup_image_compatibility(self) -> None:
         image = self._compatible_image_name()
+        if self._reuse_compatibility_image():
+            self.image = image
+            return
         dockerfile_path = self.directory / "Dockerfile.corecompat"
         self._write_host_file(
             dockerfile_path, self._compatibility_dockerfile(self.image)
@@ -453,20 +460,23 @@ class DockerNode(CoreNode):
             return None
 
         dockerfile_path = self.directory / "Dockerfile.corecompat"
-        self._write_host_file(dockerfile_path, self._compatibility_dockerfile(image))
         compatible_image = self._compatible_image_name()
         override = {
             "services": {
                 self.compose_name: {
                     "image": compatible_image,
-                    "build": {
-                        "context": ".",
-                        "dockerfile": dockerfile_path.name,
-                        "network": COMPAT_BUILD_NETWORK,
-                    },
                 }
             }
         }
+        if not self._reuse_compatibility_image():
+            self._write_host_file(
+                dockerfile_path, self._compatibility_dockerfile(image)
+            )
+            override["services"][self.compose_name]["build"] = {
+                "context": ".",
+                "dockerfile": dockerfile_path.name,
+                "network": COMPAT_BUILD_NETWORK,
+            }
         override_path = self.directory / "docker-compose.corecompat.yml"
         self._write_host_file(override_path, yaml.safe_dump(override, sort_keys=False))
         return override_path

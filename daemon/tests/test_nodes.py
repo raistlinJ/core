@@ -477,6 +477,30 @@ services:
         assert "Dockerfile.corecompat" in override
         assert "network: host" in override
 
+    def test_docker_compose_reuses_existing_compatibility_image(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.name = "n1"
+        node.id = 1
+        node.compose_name = "web"
+        node.directory = Path("/tmp/n1.conf")
+        node.session = mock.MagicMock(id=1000)
+        node.session.reuse_compatibility_images = {
+            "core-compat-1000-1-n1:latest"
+        }
+        node._write_host_file = mock.MagicMock()
+        rendered = "services:\n  web:\n    image: example/web\n"
+
+        # when
+        override_path = node._compose_image_compatibility_override(rendered)
+
+        # then
+        assert override_path == Path("/tmp/n1.conf/docker-compose.corecompat.yml")
+        node._write_host_file.assert_called_once()
+        _, override = node._write_host_file.call_args.args
+        assert "core-compat-1000-1-n1:latest" in override
+        assert "build:" not in override
+
     def test_docker_compose_checks_image_compatibility(self):
         # given
         node = DockerNode.__new__(DockerNode)

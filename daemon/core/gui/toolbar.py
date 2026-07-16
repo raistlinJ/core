@@ -9,6 +9,7 @@ from PIL.ImageTk import PhotoImage
 
 from core.gui import nodeutils as nutils
 from core.gui.dialogs.colorpicker import ColorPickerDialog
+from core.gui.dialogs.dockerimage import DockerImageConflictDialog
 from core.gui.dialogs.runtool import RunToolDialog
 from core.gui.graph import tags
 from core.gui.graph.enums import GraphMode
@@ -308,31 +309,40 @@ class Toolbar(ttk.Frame):
             container_conflicts = self.app.core.container_conflicts(exceptions)
             image_conflicts = self.app.core.image_conflicts(exceptions)
             if container_conflicts or image_conflicts:
-                resources = []
+                replace_containers = False
                 if container_conflicts:
-                    resources.append(
-                        "Containers:\n" + "\n".join(container_conflicts)
+                    names = "\n".join(container_conflicts)
+                    replace_containers = messagebox.askyesno(
+                        "Replace Docker Containers",
+                        "The following Docker container names are already in use:\n\n"
+                        f"{names}\n\nRemove them and start the emulation?",
+                        parent=self.app,
                     )
+                    if not replace_containers:
+                        self.set_design()
+                        return
+
+                replace_images = False
+                reuse_images = []
                 if image_conflicts:
-                    resources.append("Images:\n" + "\n".join(image_conflicts))
-                resource_list = "\n\n".join(resources)
-                replace = messagebox.askyesno(
-                    "Replace Docker Resources",
-                    "The following Docker resources are already in use:\n\n"
-                    f"{resource_list}\n\n"
-                    "Replace them and start the emulation?",
-                    parent=self.app,
+                    dialog = DockerImageConflictDialog(self.app, image_conflicts)
+                    dialog.show()
+                    if dialog.choice is None:
+                        self.set_design()
+                        return
+                    replace_images = dialog.choice == "remove"
+                    if dialog.choice == "reuse":
+                        reuse_images = image_conflicts
+
+                task = ProgressTask(
+                    self.app,
+                    "Start",
+                    self.app.core.start_session,
+                    self.start_callback,
+                    args=(False, replace_containers, replace_images, reuse_images),
                 )
-                if replace:
-                    task = ProgressTask(
-                        self.app,
-                        "Replace Containers and Start",
-                        self.app.core.start_session,
-                        self.start_callback,
-                        args=(False, True, True),
-                    )
-                    task.start()
-                    return
+                task.start()
+                return
             self.set_design()
             if exceptions and not (container_conflicts or image_conflicts):
                 message = "\n".join(exceptions)
