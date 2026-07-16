@@ -428,6 +428,32 @@ services:
         # then
         cmd.assert_called_once_with("docker rm -f n1")
 
+    def test_docker_compatibility_image_name(self):
+        assert (
+            DockerNode.compatibility_image_name(1000, 1, "Web Node")
+            == "core-compat-1000-1-web-node:latest"
+        )
+
+    @mock.patch("core.nodes.docker.utils.cmd")
+    def test_docker_image_exists(self, cmd):
+        # given
+        cmd.return_value = "1f3d5b7a\n"
+
+        # when
+        exists = DockerNode.image_exists("core-compat-1-1-n1:latest")
+
+        # then
+        assert exists
+        cmd.assert_called_once_with("docker image ls -q core-compat-1-1-n1:latest")
+
+    @mock.patch("core.nodes.docker.utils.cmd")
+    def test_docker_remove_image(self, cmd):
+        # when
+        DockerNode.remove_image("core-compat-1-1-n1:latest")
+
+        # then
+        cmd.assert_called_once_with("docker image rm -f core-compat-1-1-n1:latest")
+
     def test_docker_compose_image_compatibility_override(self):
         # given
         node = DockerNode.__new__(DockerNode)

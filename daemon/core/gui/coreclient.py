@@ -48,6 +48,7 @@ from core.gui.nodeutils import NodeDraw
 logger = logging.getLogger(__name__)
 
 CONTAINER_CONFLICT_PREFIX = "container name conflict: "
+IMAGE_CONFLICT_PREFIX = "image name conflict: "
 
 if TYPE_CHECKING:
     from core.gui.app import Application
@@ -426,7 +427,10 @@ class CoreClient:
         return links
 
     def start_session(
-        self, definition: bool = False, replace_containers: bool = False
+        self,
+        definition: bool = False,
+        replace_containers: bool = False,
+        replace_images: bool = False,
     ) -> tuple[bool, list[str]]:
         self.session.links = self.get_links(definition)
         self.session.metadata = self.get_metadata()
@@ -437,7 +441,7 @@ class CoreClient:
         exceptions = []
         try:
             result, exceptions = self.client.start_session(
-                self.session, definition, replace_containers
+                self.session, definition, replace_containers, replace_images
             )
             logger.info(
                 "start session(%s) definition(%s), result: %s",
@@ -458,6 +462,15 @@ class CoreClient:
             exception.removeprefix(CONTAINER_CONFLICT_PREFIX)
             for exception in exceptions
             if exception.startswith(CONTAINER_CONFLICT_PREFIX)
+        ]
+
+    @staticmethod
+    def image_conflicts(exceptions: list[str]) -> list[str]:
+        """Extract Docker image tags reported by start-session preflight."""
+        return [
+            exception.removeprefix(IMAGE_CONFLICT_PREFIX)
+            for exception in exceptions
+            if exception.startswith(IMAGE_CONFLICT_PREFIX)
         ]
 
     def stop_session(self, session_id: int = None) -> bool:

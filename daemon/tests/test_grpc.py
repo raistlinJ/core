@@ -75,6 +75,33 @@ class TestGrpc:
         assert conflicts == ["n1"]
         assert container_exists.call_args_list == [call("n1"), call("n2")]
 
+    @patch.object(DockerNode, "image_exists", return_value=True)
+    def test_docker_image_conflicts(self, image_exists):
+        # given
+        nodes = [
+            SimpleNamespace(
+                type=NodeType.DOCKER.value,
+                id=1,
+                name="n1",
+                image_compatibility=True,
+                server="",
+            ),
+            SimpleNamespace(
+                type=NodeType.DOCKER.value,
+                id=2,
+                name="n2",
+                image_compatibility=False,
+                server="",
+            ),
+        ]
+
+        # when
+        conflicts = CoreGrpcServer._docker_image_conflicts(1000, nodes)
+
+        # then
+        assert conflicts == ["core-compat-1000-1-n1:latest"]
+        image_exists.assert_called_once_with("core-compat-1000-1-n1:latest")
+
     @pytest.mark.parametrize("definition", [False, True])
     def test_start_session(self, grpc_server: CoreGrpcServer, definition):
         # given

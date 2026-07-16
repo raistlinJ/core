@@ -305,13 +305,22 @@ class Toolbar(ttk.Frame):
 
     def start_callback(self, result: bool, exceptions: list[str]) -> None:
         if not result:
-            conflicts = self.app.core.container_conflicts(exceptions)
-            if conflicts:
-                names = "\n".join(conflicts)
+            container_conflicts = self.app.core.container_conflicts(exceptions)
+            image_conflicts = self.app.core.image_conflicts(exceptions)
+            if container_conflicts or image_conflicts:
+                resources = []
+                if container_conflicts:
+                    resources.append(
+                        "Containers:\n" + "\n".join(container_conflicts)
+                    )
+                if image_conflicts:
+                    resources.append("Images:\n" + "\n".join(image_conflicts))
+                resource_list = "\n\n".join(resources)
                 replace = messagebox.askyesno(
-                    "Replace Docker Container",
-                    "The following Docker container names are already in use:\n\n"
-                    f"{names}\n\nReplace them and start the emulation?",
+                    "Replace Docker Resources",
+                    "The following Docker resources are already in use:\n\n"
+                    f"{resource_list}\n\n"
+                    "Replace them and start the emulation?",
                     parent=self.app,
                 )
                 if replace:
@@ -320,12 +329,12 @@ class Toolbar(ttk.Frame):
                         "Replace Containers and Start",
                         self.app.core.start_session,
                         self.start_callback,
-                        args=(False, True),
+                        args=(False, True, True),
                     )
                     task.start()
                     return
             self.set_design()
-            if exceptions and not conflicts:
+            if exceptions and not (container_conflicts or image_conflicts):
                 message = "\n".join(exceptions)
                 self.app.show_exception_data(
                     "Start Exception", "Session failed to start", message

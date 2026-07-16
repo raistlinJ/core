@@ -144,6 +144,7 @@ message StartSessionRequest {
     Session session = 1;
     bool definition = 2;
     bool replace_containers = 3;
+    bool replace_images = 4;
 }
 
 message StartSessionResponse {

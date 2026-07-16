@@ -234,6 +234,26 @@ class DockerNode(CoreNode):
         """Force-remove a local Docker container by name."""
         utils.cmd(f"{DOCKER} rm -f {shlex.quote(name)}")
 
+    @classmethod
+    def compatibility_image_name(
+        cls, session_id: int, node_id: int, node_name: str
+    ) -> str:
+        """Return the compatibility image tag for a session node."""
+        value = f"core-compat-{session_id}-{node_id}-{node_name}".lower()
+        name = "".join(c if c.isalnum() or c in "._-" else "-" for c in value)
+        return f"{name}:latest"
+
+    @classmethod
+    def image_exists(cls, name: str) -> bool:
+        """Return whether a local Docker image has the exact given tag."""
+        output = utils.cmd(f"{DOCKER} image ls -q {shlex.quote(name)}")
+        return bool(output.strip())
+
+    @classmethod
+    def remove_image(cls, name: str) -> None:
+        """Force-remove a local Docker image by tag."""
+        utils.cmd(f"{DOCKER} image rm -f {shlex.quote(name)}")
+
     def should_check_image_compatibility(self) -> bool:
         return self.image_compatibility
 
@@ -331,9 +351,7 @@ class DockerNode(CoreNode):
         return yaml.safe_dump(data, sort_keys=False)
 
     def _compatible_image_name(self) -> str:
-        value = f"core-compat-{self.session.id}-{self.id}-{self.name}".lower()
-        name = "".join(c if c.isalnum() or c in "._-" else "-" for c in value)
-        return f"{name}:latest"
+        return self.compatibility_image_name(self.session.id, self.id, self.name)
 
     def _image_user(self, image: str) -> str | None:
         quoted_image = shlex.quote(image)

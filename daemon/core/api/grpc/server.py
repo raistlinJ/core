@@ -95,6 +95,7 @@ logger = logging.getLogger(__name__)
 _INTERFACE_REGEX: Pattern[str] = re.compile(r"beth(?P<node>[0-9a-fA-F]+)")
 _MAX_WORKERS = 1000
 CONTAINER_CONFLICT_PREFIX = "container name conflict: "
+IMAGE_CONFLICT_PREFIX = "image name conflict: "
 
 
 class CoreGrpcServer(core_pb2_grpc.CoreApiServicer):
@@ -168,6 +169,22 @@ class CoreGrpcServer(core_pb2_grpc.CoreApiServicer):
             and not node.server
         }
         return sorted(name for name in names if DockerNode.container_exists(name))
+
+    @staticmethod
+    def _docker_image_conflicts(
+        session_id: int, nodes: Iterable[core_pb2.Node]
+    ) -> list[str]:
+        """Return compatibility image tags that would be rebuilt for local nodes."""
+        names = {
+            DockerNode.compatibility_image_name(session_id, node.id, node.name)
+            for node in nodes
+            if node.type == NodeTypes.DOCKER.value
+            and node.id
+            and node.name
+            and node.image_compatibility
+            and not node.server
+        }
+        return sorted(name for name in names if DockerNode.image_exists(name))
 
     def get_node(
         self, session: Session, node_id: int, context: ServicerContext, _class: type[NT]
@@ -259,20 +276,30 @@ class CoreGrpcServer(core_pb2_grpc.CoreApiServicer):
         logger.debug("start session: %s", request)
         session = self.get_session(request.session.id, context)
 
-        conflicts = []
+        container_conflicts = []
+        image_conflicts = []
         if not request.definition:
-            conflicts = self._docker_container_conflicts(request.session.nodes)
-        if conflicts:
-            if request.replace_containers:
-                for name in conflicts:
-                    DockerNode.remove_container(name)
-            else:
-                exceptions = [
-                    f"{CONTAINER_CONFLICT_PREFIX}{name}" for name in conflicts
-                ]
-                return core_pb2.StartSessionResponse(
-                    result=False, exceptions=exceptions
-                )
+            container_conflicts = self._docker_container_conflicts(
+                request.session.nodes
+            )
+            image_conflicts = self._docker_image_conflicts(
+                request.session.id, request.session.nodes
+            )
+        exceptions = []
+        if container_conflicts and not request.replace_containers:
+            exceptions.extend(
+                f"{CONTAINER_CONFLICT_PREFIX}{name}" for name in container_conflicts
+            )
+        if image_conflicts and not request.replace_images:
+            exceptions.extend(
+                f"{IMAGE_CONFLICT_PREFIX}{name}" for name in image_conflicts
+            )
+        if exceptions:
+            return core_pb2.StartSessionResponse(result=False, exceptions=exceptions)
+        for name in container_conflicts:
+            DockerNode.remove_container(name)
+        for name in image_conflicts:
+            DockerNode.remove_image(name)
 
         # clear previous state and setup for creation
         session.clear()
