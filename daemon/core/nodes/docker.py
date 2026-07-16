@@ -223,6 +223,18 @@ class DockerNode(CoreNode):
         """
         return f"{self.session.id}.{self.id}.{name}"
 
+    @classmethod
+    def container_exists(cls, name: str) -> bool:
+        """Return whether a local Docker container has the exact given name."""
+        name_filter = shlex.quote(f"name=^/{name}$")
+        output = utils.cmd(f"{DOCKER} container ls -aq --filter {name_filter}")
+        return bool(output.strip())
+
+    @classmethod
+    def remove_container(cls, name: str) -> None:
+        """Force-remove a local Docker container by name."""
+        utils.cmd(f"{DOCKER} rm -f {shlex.quote(name)}")
+
     def should_check_image_compatibility(self) -> bool:
         return self.image_compatibility
 
@@ -283,8 +295,12 @@ class DockerNode(CoreNode):
 
     def adopt_iface(self, iface, name: str) -> None:
         """Adopt CORE links without replacing Compose's network interfaces."""
-        if self.compose and name == iface.name:
-            name = f"eth{self.get_iface_id(iface) + self.compose_interface_count}"
+        if self.compose:
+            if name == iface.name:
+                name = f"eth{self.get_iface_id(iface) + self.compose_interface_count}"
+            elif name.startswith("eth") and name[3:].isdigit():
+                iface_number = int(name[3:])
+                name = f"eth{iface_number + self.compose_interface_count}"
         super().adopt_iface(iface, name)
 
     def _compatible_image_name(self) -> str:
@@ -491,12 +507,6 @@ class DockerNode(CoreNode):
                         startup_command,
                     )
 
-                # Clean up stale container names from interrupted runs.
-                self.host_cmd(
-                    f"{DOCKER} rm -f {self.name} >/dev/null 2>&1 || true",
-                    shell=True,
-                )
-                
                 run_cmd = (
                     f"{DOCKER} run -td --init --net=none --hostname {hostname} "
                     f"--name {self.name} --sysctl net.ipv6.conf.all.disable_ipv6=0 "
@@ -549,7 +559,9 @@ class DockerNode(CoreNode):
                 # them instead of altering the Compose network namespace.
                 self.compose_interface_count = 1
                 try:
-                    self.compose_interface_count = self._compose_network_interface_count()
+                    self.compose_interface_count = max(
+                        1, self._compose_network_interface_count()
+                    )
                 except CoreCommandError:
                     logger.warning(
                         "node(%s) could not inspect Compose network interfaces",

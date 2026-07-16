@@ -1,10 +1,11 @@
 import time
 from pathlib import Path
 from queue import Queue
+from types import SimpleNamespace
 
 import grpc
 import pytest
-from mock import patch
+from mock import call, patch
 
 from core.api.grpc import wrappers
 from core.api.grpc.client import CoreGrpcClient, InterfaceHelper, MoveNodesStreamer
@@ -36,12 +37,44 @@ from core.emulator.enumerations import AlertLevels, EventTypes, MessageFlags
 from core.errors import CoreError
 from core.location.mobility import BasicRangeModel, Ns2ScriptedMobility
 from core.nodes.base import CoreNode
+from core.nodes.docker import DockerNode
 from core.nodes.network import SwitchNode, WlanNode
 from core.services.defaults.utilservices.services import DefaultRouteService
 from core.xml.corexml import CoreXmlWriter
 
 
 class TestGrpc:
+    @patch.object(DockerNode, "container_exists", side_effect=lambda name: name == "n1")
+    def test_docker_container_conflicts(self, container_exists):
+        # given
+        nodes = [
+            SimpleNamespace(
+                type=NodeType.DOCKER.value,
+                name="n1",
+                compose="",
+                server="",
+            ),
+            SimpleNamespace(
+                type=NodeType.DOCKER.value,
+                name="n2",
+                compose="",
+                server="",
+            ),
+            SimpleNamespace(
+                type=NodeType.DOCKER.value,
+                name="compose",
+                compose="/tmp/compose.yaml",
+                server="",
+            ),
+        ]
+
+        # when
+        conflicts = CoreGrpcServer._docker_container_conflicts(nodes)
+
+        # then
+        assert conflicts == ["n1"]
+        assert container_exists.call_args_list == [call("n1"), call("n2")]
+
     @pytest.mark.parametrize("definition", [False, True])
     def test_start_session(self, grpc_server: CoreGrpcServer, definition):
         # given

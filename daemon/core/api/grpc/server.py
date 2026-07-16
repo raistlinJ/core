@@ -80,6 +80,7 @@ from core.emulator.session import NT, Session
 from core.errors import CoreCommandError, CoreError
 from core.location.mobility import BasicRangeModel, Ns2ScriptedMobility
 from core.nodes.base import CoreNode, NodeBase
+from core.nodes.docker import DockerNode
 from core.nodes.network import CoreNetwork, WlanNode
 from core.nodes.wireless import WirelessNode
 from core.services.base import (
@@ -93,6 +94,7 @@ from core.xml.corexml import CoreXmlWriter
 logger = logging.getLogger(__name__)
 _INTERFACE_REGEX: Pattern[str] = re.compile(r"beth(?P<node>[0-9a-fA-F]+)")
 _MAX_WORKERS = 1000
+CONTAINER_CONFLICT_PREFIX = "container name conflict: "
 
 
 class CoreGrpcServer(core_pb2_grpc.CoreApiServicer):
@@ -153,6 +155,19 @@ class CoreGrpcServer(core_pb2_grpc.CoreApiServicer):
         if not session:
             context.abort(grpc.StatusCode.NOT_FOUND, f"session {session_id} not found")
         return session
+
+    @staticmethod
+    def _docker_container_conflicts(nodes: Iterable[core_pb2.Node]) -> list[str]:
+        """Return names occupied by local Docker nodes that will be created."""
+        names = {
+            node.name
+            for node in nodes
+            if node.type == NodeTypes.DOCKER.value
+            and node.name
+            and not node.compose
+            and not node.server
+        }
+        return sorted(name for name in names if DockerNode.container_exists(name))
 
     def get_node(
         self, session: Session, node_id: int, context: ServicerContext, _class: type[NT]
@@ -243,6 +258,21 @@ class CoreGrpcServer(core_pb2_grpc.CoreApiServicer):
         """
         logger.debug("start session: %s", request)
         session = self.get_session(request.session.id, context)
+
+        conflicts = []
+        if not request.definition:
+            conflicts = self._docker_container_conflicts(request.session.nodes)
+        if conflicts:
+            if request.replace_containers:
+                for name in conflicts:
+                    DockerNode.remove_container(name)
+            else:
+                exceptions = [
+                    f"{CONTAINER_CONFLICT_PREFIX}{name}" for name in conflicts
+                ]
+                return core_pb2.StartSessionResponse(
+                    result=False, exceptions=exceptions
+                )
 
         # clear previous state and setup for creation
         session.clear()

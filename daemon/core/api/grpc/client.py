@@ -251,7 +251,10 @@ class CoreGrpcClient:
         self.proxy: bool = proxy
 
     def start_session(
-        self, session: wrappers.Session, definition: bool = False
+        self,
+        session: wrappers.Session,
+        definition: bool = False,
+        replace_containers: bool = False,
     ) -> tuple[bool, list[str]]:
         """
         Start a session.
@@ -261,7 +264,9 @@ class CoreGrpcClient:
         :return: tuple of result and exception strings
         """
         request = core_pb2.StartSessionRequest(
-            session=session.to_proto(), definition=definition
+            session=session.to_proto(),
+            definition=definition,
+            replace_containers=replace_containers,
         )
         response = self.stub.StartSession(request)
         return response.result, list(response.exceptions)

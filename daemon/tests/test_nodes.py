@@ -377,6 +377,20 @@ class TestNodes:
         # then
         adopt_iface.assert_called_once_with(iface, "eth1")
 
+    def test_docker_compose_offsets_conflicting_explicit_interface_name(self):
+        # given
+        node = DockerNode.__new__(DockerNode)
+        node.compose = "/tmp/compose.yaml"
+        node.compose_interface_count = 1
+        iface = mock.MagicMock(name="veth1")
+
+        # when
+        with mock.patch.object(CoreNode, "adopt_iface") as adopt_iface:
+            node.adopt_iface(iface, "eth0")
+
+        # then
+        adopt_iface.assert_called_once_with(iface, "eth1")
+
     def test_docker_volume_mountpoint_strips_command_newline(self):
         # given
         node = DockerNode.__new__(DockerNode)
@@ -393,6 +407,28 @@ class TestNodes:
         node.host_cmd.assert_called_once_with(
             "docker volume inspect -f '{{.Mountpoint}}' data"
         )
+
+    @mock.patch("core.nodes.docker.utils.cmd")
+    def test_docker_container_exists(self, cmd):
+        # given
+        cmd.return_value = "1f3d5b7a\n"
+
+        # when
+        exists = DockerNode.container_exists("n1")
+
+        # then
+        assert exists
+        cmd.assert_called_once_with(
+            "docker container ls -aq --filter 'name=^/n1$'"
+        )
+
+    @mock.patch("core.nodes.docker.utils.cmd")
+    def test_docker_remove_container(self, cmd):
+        # when
+        DockerNode.remove_container("n1")
+
+        # then
+        cmd.assert_called_once_with("docker rm -f n1")
 
     def test_docker_compose_image_compatibility_override(self):
         # given

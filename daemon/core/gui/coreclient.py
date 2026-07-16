@@ -47,6 +47,8 @@ from core.gui.nodeutils import NodeDraw
 
 logger = logging.getLogger(__name__)
 
+CONTAINER_CONFLICT_PREFIX = "container name conflict: "
+
 if TYPE_CHECKING:
     from core.gui.app import Application
 
@@ -423,7 +425,9 @@ class CoreClient:
                 links.append(edge.asymmetric_link)
         return links
 
-    def start_session(self, definition: bool = False) -> tuple[bool, list[str]]:
+    def start_session(
+        self, definition: bool = False, replace_containers: bool = False
+    ) -> tuple[bool, list[str]]:
         self.session.links = self.get_links(definition)
         self.session.metadata = self.get_metadata()
         self.session.servers.clear()
@@ -432,7 +436,9 @@ class CoreClient:
         result = False
         exceptions = []
         try:
-            result, exceptions = self.client.start_session(self.session, definition)
+            result, exceptions = self.client.start_session(
+                self.session, definition, replace_containers
+            )
             logger.info(
                 "start session(%s) definition(%s), result: %s",
                 self.session.id,
@@ -444,6 +450,15 @@ class CoreClient:
         except grpc.RpcError as e:
             self.app.show_grpc_exception("Start Session Error", e)
         return result, exceptions
+
+    @staticmethod
+    def container_conflicts(exceptions: list[str]) -> list[str]:
+        """Extract Docker container names reported by start-session preflight."""
+        return [
+            exception.removeprefix(CONTAINER_CONFLICT_PREFIX)
+            for exception in exceptions
+            if exception.startswith(CONTAINER_CONFLICT_PREFIX)
+        ]
 
     def stop_session(self, session_id: int = None) -> bool:
         session_id = session_id or self.session.id

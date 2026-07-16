@@ -2,7 +2,7 @@ import logging
 import tkinter as tk
 from enum import Enum
 from functools import partial
-from tkinter import ttk
+from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING, Callable
 
 from PIL.ImageTk import PhotoImage
@@ -304,13 +304,35 @@ class Toolbar(ttk.Frame):
         task.start()
 
     def start_callback(self, result: bool, exceptions: list[str]) -> None:
+        if not result:
+            conflicts = self.app.core.container_conflicts(exceptions)
+            if conflicts:
+                names = "\n".join(conflicts)
+                replace = messagebox.askyesno(
+                    "Replace Docker Container",
+                    "The following Docker container names are already in use:\n\n"
+                    f"{names}\n\nReplace them and start the emulation?",
+                    parent=self.app,
+                )
+                if replace:
+                    task = ProgressTask(
+                        self.app,
+                        "Replace Containers and Start",
+                        self.app.core.start_session,
+                        self.start_callback,
+                        args=(False, True),
+                    )
+                    task.start()
+                    return
+            self.set_design()
+            if exceptions and not conflicts:
+                message = "\n".join(exceptions)
+                self.app.show_exception_data(
+                    "Start Exception", "Session failed to start", message
+                )
+            return
         self.set_runtime()
         self.app.core.show_mobility_players()
-        if not result and exceptions:
-            message = "\n".join(exceptions)
-            self.app.show_exception_data(
-                "Start Exception", "Session failed to start", message
-            )
 
     def set_runtime(self) -> None:
         enable_buttons(self.runtime_frame, enabled=True)
