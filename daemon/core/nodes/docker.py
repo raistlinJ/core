@@ -14,7 +14,7 @@ from mako.template import Template
 from core import utils
 from core.emulator.distributed import DistributedServer
 from core.errors import CoreCommandError, CoreError
-from core.executables import BASH, IP
+from core.executables import BASH
 from core.nodes.base import CoreNode, CoreNodeOptions
 
 logger = logging.getLogger(__name__)
@@ -104,7 +104,6 @@ class DockerNode(CoreNode):
         self.env: dict[str, str] = {}
         self.runtime_container: str = self.name
         self.compose_files: list[str] = []
-        self.compose_interface_count: int = 0
         for src, dst, unique, delete in options.volumes:
             src_name = self._unique_name(src) if unique else src
             self.volumes[src] = DockerVolume(src_name, dst, unique, delete)
@@ -280,28 +279,54 @@ class DockerNode(CoreNode):
         )
         return " ".join(args)
 
-    def _compose_network_interface_count(self) -> int:
-        """Return the number of Ethernet interfaces provided by Compose."""
-        output = self.net_cmd(f"{IP} -o link show")
-        count = 0
-        for line in output.splitlines():
-            fields = line.split(":", 2)
-            if len(fields) < 2:
-                continue
-            interface = fields[1].strip().split("@", 1)[0]
-            if interface.startswith("eth") and interface[3:].isdigit():
-                count += 1
-        return count
+    def _compose_core_network(self, rendered: str) -> str:
+        """Put all Compose services in the selected service's CORE namespace.
 
-    def adopt_iface(self, iface, name: str) -> None:
-        """Adopt CORE links without replacing Compose's network interfaces."""
-        if self.compose:
-            if name == iface.name:
-                name = f"eth{self.get_iface_id(iface) + self.compose_interface_count}"
-            elif name.startswith("eth") and name[3:].isdigit():
-                iface_number = int(name[3:])
-                name = f"eth{iface_number + self.compose_interface_count}"
-        super().adopt_iface(iface, name)
+        Compose normally gives every service a Docker bridge interface. CORE nodes
+        must instead receive their sole data-plane interface from the emulation.
+        The selected service starts with no Docker network; every other service
+        shares that namespace and is reachable by its service name on loopback.
+        """
+        data = yaml.safe_load(rendered) or {}
+        services = data.get("services") or {}
+        target = services.get(self.compose_name)
+        if not target:
+            raise CoreError(f"compose service not found: {self.compose_name}")
+
+        target["network_mode"] = "none"
+        target.pop("networks", None)
+        target.pop("depends_on", None)
+        target.pop("ports", None)
+
+        def normalize_extra_hosts(value) -> dict[str, str]:
+            if isinstance(value, dict):
+                return dict(value)
+            if not isinstance(value, list):
+                return {}
+            hosts = {}
+            for entry in value:
+                if not isinstance(entry, str):
+                    continue
+                if "=" in entry:
+                    host, address = entry.split("=", 1)
+                elif ":" in entry:
+                    host, address = entry.split(":", 1)
+                else:
+                    continue
+                hosts[host] = address
+            return hosts
+
+        for service_name, service in services.items():
+            hosts = normalize_extra_hosts(service.get("extra_hosts"))
+            for other_service in services:
+                if other_service != service_name:
+                    hosts.setdefault(other_service, "127.0.0.1")
+            service["extra_hosts"] = hosts
+            if service_name != self.compose_name:
+                service["network_mode"] = f"service:{self.compose_name}"
+                service.pop("networks", None)
+                service.pop("ports", None)
+        return yaml.safe_dump(data, sort_keys=False)
 
     def _compatible_image_name(self) -> str:
         value = f"core-compat-{self.session.id}-{self.id}-{self.name}".lower()
@@ -466,6 +491,7 @@ class DockerNode(CoreNode):
                     docker=DOCKER,
                     docker_compose=DOCKER_COMPOSE,
                 )
+                rendered = self._compose_core_network(rendered)
                 compose_path = self._prepare_compose_project(compose_path, rendered)
                 self.compose_files = [compose_path.name]
                 if self.should_check_image_compatibility():
@@ -473,8 +499,7 @@ class DockerNode(CoreNode):
                     if override_path:
                         self.compose_files.append(override_path.name)
                 self.host_cmd(
-                    f"{DOCKER_COMPOSE} {self._compose_args()} up -d "
-                    f"{shlex.quote(self.compose_name)}",
+                    f"{DOCKER_COMPOSE} {self._compose_args()} up -d",
                     cwd=self.directory,
                 )
                 self.runtime_container = self._resolve_runtime_container()
@@ -552,22 +577,6 @@ class DockerNode(CoreNode):
                     continue
                 key, value = line.split("=", 1)
                 self.env[key] = value
-            if self.compose:
-                # Compose services need their original network (including Docker
-                # DNS and its default route) while their entrypoint starts.
-                # Reserve those ethN names for Compose and place CORE links after
-                # them instead of altering the Compose network namespace.
-                self.compose_interface_count = 1
-                try:
-                    self.compose_interface_count = max(
-                        1, self._compose_network_interface_count()
-                    )
-                except CoreCommandError:
-                    logger.warning(
-                        "node(%s) could not inspect Compose network interfaces",
-                        self.name,
-                        exc_info=True,
-                    )
             logger.debug("node(%s) pid: %s", self.name, self.pid)
             self.up = True
             if self.run_image_default:
