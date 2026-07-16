@@ -316,16 +316,18 @@ class DockerNode(CoreNode):
                 hosts[host] = address
             return hosts
 
+        target_hosts = normalize_extra_hosts(target.get("extra_hosts"))
         for service_name, service in services.items():
-            hosts = normalize_extra_hosts(service.get("extra_hosts"))
-            for other_service in services:
-                if other_service != service_name:
-                    hosts.setdefault(other_service, "127.0.0.1")
-            service["extra_hosts"] = hosts
-            if service_name != self.compose_name:
-                service["network_mode"] = f"service:{self.compose_name}"
-                service.pop("networks", None)
-                service.pop("ports", None)
+            if service_name == self.compose_name:
+                continue
+            target_hosts.setdefault(service_name, "127.0.0.1")
+            # Docker does not allow extra_hosts together with
+            # network_mode: service:<name>.
+            service.pop("extra_hosts", None)
+            service["network_mode"] = f"service:{self.compose_name}"
+            service.pop("networks", None)
+            service.pop("ports", None)
+        target["extra_hosts"] = target_hosts
         return yaml.safe_dump(data, sort_keys=False)
 
     def _compatible_image_name(self) -> str:

@@ -386,6 +386,7 @@ services:
         assert mongo["network_mode"] == "service:web"
         assert "networks" not in mongo
         assert "ports" not in mongo
+        assert "extra_hosts" not in mongo
 
     def test_docker_volume_mountpoint_strips_command_newline(self):
         # given
