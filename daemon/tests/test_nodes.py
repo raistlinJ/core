@@ -279,6 +279,7 @@ class TestNodes:
         assert "old-releases.ubuntu.com/ubuntu" in dockerfile
         assert "archive\\.debian\\.org\\/debian [^[:space:]]*-updates" in dockerfile
         assert "done; };" in dockerfile
+        assert "apt-get install -y --allow-unauthenticated --force-yes" in dockerfile
 
     def test_docker_prepare_compose_project_local(self):
         # given
